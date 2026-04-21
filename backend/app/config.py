@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     # Bearer token dla autoryzacji apki mobilnej
     api_token: str | None = None
 
+    # LanceDB — indeks CLIP embeddings do similarity search
+    lancedb_path: str = "data/lancedb"
+    clip_model: str = "ViT-B-32-quickgelu"  # QuickGELU match OpenAI pretrained weights
+    clip_pretrained: str = "openai"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
