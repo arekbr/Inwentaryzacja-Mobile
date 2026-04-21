@@ -1,3 +1,4 @@
+import uuid
 from contextlib import contextmanager
 from typing import Iterator
 
@@ -33,3 +34,36 @@ def db_cursor() -> Iterator[DictCursor]:
         raise
     finally:
         conn.close()
+
+
+def lookup_or_insert(
+    cur: DictCursor,
+    table: str,
+    name: str,
+    extra_cols: dict | None = None,
+) -> str:
+    """
+    Szuka wpisu po kolumnie `name` w tabeli słownikowej. Zwraca istniejące ID
+    albo wstawia nowy wiersz (UUID4) i zwraca jego ID. Port 1:1 z
+    `importuj_mariadb.py::lookup_or_insert()`.
+    """
+    cur.execute(f"SELECT id FROM {table} WHERE name = %s", (name,))  # noqa: S608
+    row = cur.fetchone()
+    if row:
+        return row["id"]
+
+    new_id = str(uuid.uuid4())
+    if extra_cols:
+        cols = ["id", "name", *extra_cols.keys()]
+        placeholders = ", ".join(["%s"] * len(cols))
+        values = [new_id, name, *extra_cols.values()]
+        cur.execute(
+            f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})",  # noqa: S608
+            values,
+        )
+    else:
+        cur.execute(
+            f"INSERT INTO {table} (id, name) VALUES (%s, %s)",  # noqa: S608
+            (new_id, name),
+        )
+    return new_id
