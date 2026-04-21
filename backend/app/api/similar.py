@@ -1,8 +1,15 @@
+import base64
+import logging
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 
 from app.auth import require_token
+from app.db import db_cursor
+from app.image_utils import make_thumbnail
 from app.schemas import SimilarResponse, SimilarResult
 from app.similarity import index_size, search_similar
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -28,6 +35,33 @@ async def similar_endpoint(
             f"Błąd similarity search: {e}",
         ) from e
 
+    # Dociągnij miniatury pierwszych zdjęć dla każdego wyniku (jeden SELECT IN).
+    thumbs_by_id: dict[str, str] = {}
+    if matches:
+        ids = [m["exhibit_id"] for m in matches]
+        placeholders = ",".join(["%s"] * len(ids))
+        with db_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT p.eksponat_id, p.photo
+                FROM photos p
+                INNER JOIN (
+                    SELECT eksponat_id, MIN(id) AS first_id
+                    FROM photos
+                    WHERE eksponat_id IN ({placeholders})
+                    GROUP BY eksponat_id
+                ) firsts ON p.id = firsts.first_id
+                """,
+                ids,
+            )
+            for row in cur.fetchall():
+                eid = row["eksponat_id"]
+                blob = row["photo"]
+                try:
+                    thumbs_by_id[eid] = base64.standard_b64encode(make_thumbnail(blob)).decode("ascii")
+                except Exception as e:
+                    logger.warning("Thumbnail failed for %s: %s", eid, e)
+
     results = [
         SimilarResult(
             exhibit_id=m["exhibit_id"],
@@ -35,6 +69,7 @@ async def similar_endpoint(
             vendor=m.get("vendor"),
             model=m.get("model"),
             distance=float(m["_distance"]),
+            thumbnail_b64=thumbs_by_id.get(m["exhibit_id"]),
         )
         for m in matches
     ]
