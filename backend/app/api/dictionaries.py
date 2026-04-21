@@ -1,20 +1,8 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 
 from app.auth import require_token
 from app.db import db_cursor
-
-
-class DictItem(BaseModel):
-    id: str
-    name: str
-
-
-class ModelItem(BaseModel):
-    id: str
-    name: str
-    vendor_id: str | None = None
-
+from app.schemas import DictItem, ModelItem
 
 router = APIRouter(
     prefix="/api/v1/dictionaries",
