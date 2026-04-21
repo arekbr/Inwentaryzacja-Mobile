@@ -105,3 +105,16 @@ class ExhibitCreate(BaseModel):
 class ExhibitCreateResponse(BaseModel):
     id: str
     photos_count: int
+
+
+class SimilarResult(BaseModel):
+    exhibit_id: str
+    name: str
+    vendor: str | None = None
+    model: str | None = None
+    distance: float = Field(description="L2 distance (0 = identyczne, >1 = różne)")
+
+
+class SimilarResponse(BaseModel):
+    results: list[SimilarResult]
+    index_size: int
