@@ -97,10 +97,9 @@ ApplicationWindow {
                 }
 
                 Button {
-                    text: "Znajdź podobne (wkrótce)"
+                    text: "Znajdź podobne"
                     Layout.fillWidth: true
-                    opacity: 0.4
-                    onClicked: {}
+                    onClicked: stack.push("SimilarPage.qml")
                 }
 
                 Label {
