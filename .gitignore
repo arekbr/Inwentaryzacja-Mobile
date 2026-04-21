@@ -1,0 +1,60 @@
+# === Python (backend) ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# === Qt / CMake / C++ (android-app) ===
+build/
+build-*/
+CMakeCache.txt
+CMakeFiles/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.user
+*.pro.user
+*.pro.user.*
+.qmake.cache
+.qmake.stash
+compile_commands.json
+
+# === Android ===
+*.apk
+*.aab
+*.keystore
+*.jks
+android-app/android-build/
+android-app/.gradle/
+local.properties
+
+# === IDE ===
+.idea/
+.vscode/
+.qt/
+*.swp
+*.swo
+
+# === macOS ===
+.DS_Store
+._*
+
+# === Secrets / local config ===
+.env
+.env.local
+*.key
+*.pem
+signing-config.properties
+
+# === Data ===
+backend/data/
+backend/*.db
+backend/embeddings/
