@@ -1,8 +1,14 @@
+import logging
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.auth import require_token
 from app.claude_client import identify
+from app.config import settings
+from app.mock_fixtures import mock_identify_response
 from app.schemas import Artefakt
+
+logger = logging.getLogger(__name__)
 
 MAX_IMAGES = 5
 MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB — Claude API i tak potem skaluje do 2000px
@@ -23,6 +29,14 @@ async def identify_endpoint(
             status.HTTP_400_BAD_REQUEST,
             detail=f"Wymagane 1-{MAX_IMAGES} zdjęć, otrzymano {len(images)}",
         )
+
+    # DEV: mockowana odpowiedź bez wołania Anthropic (oszczędza $ podczas iteracji UI).
+    # Czytamy bytes żeby URL form-data nie trafiało otwartego stream'a do GC-a.
+    if settings.dev_mock_identify:
+        for img in images:
+            await img.read()
+        logger.warning("[MOCK] /identify — zwracam cached response (DEV_MOCK_IDENTIFY=true)")
+        return mock_identify_response()
 
     raw_list: list[bytes] = []
     for img in images:

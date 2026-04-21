@@ -33,6 +33,7 @@ qt_add_qml_module(InwentaryzacjaMobile
         qml/Main.qml
         qml/CameraPage.qml
         qml/SettingsPage.qml
+        qml/EditExhibitPage.qml
 )
 
 target_link_libraries(InwentaryzacjaMobile PRIVATE
