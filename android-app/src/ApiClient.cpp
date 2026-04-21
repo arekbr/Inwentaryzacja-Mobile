@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QHttpMultiPart>
 #include <QHttpPart>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
@@ -111,4 +112,54 @@ void ApiClient::identify(const QString &photoPath)
             }
             emit identifyResult(doc.object().toVariantMap());
         });
+}
+
+void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath)
+{
+    qInfo() << "[ApiClient] saveExhibit" << payload.value("name") << "photo:" << photoPath;
+
+    // Wczytaj zdjęcie i zakoduj do base64
+    QFile file(photoPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        emit exhibitError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath);
+        return;
+    }
+    const QByteArray photoB64 = file.readAll().toBase64();
+    file.close();
+
+    // Zbuduj JSON body
+    QJsonObject body = QJsonObject::fromVariantMap(payload);
+    body["photos_base64"] = QJsonArray{QString::fromLatin1(photoB64)};
+
+    const QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits"));
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    if (!m_settings->apiToken().isEmpty()) {
+        req.setRawHeader("Authorization",
+                         ("Bearer " + m_settings->apiToken()).toUtf8());
+    }
+
+    QNetworkReply *reply = m_nam->post(req, QJsonDocument(body).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (reply->error() != QNetworkReply::NoError) {
+            const QByteArray errBody = reply->readAll();
+            QString msg = reply->errorString();
+            if (!errBody.isEmpty()) {
+                const QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
+                if (errDoc.isObject() && errDoc.object().contains("detail")) {
+                    const QJsonValue det = errDoc.object().value("detail");
+                    msg += ": " + (det.isString() ? det.toString()
+                                                  : QString::fromUtf8(QJsonDocument(det.toArray()).toJson(QJsonDocument::Compact)));
+                }
+            }
+            emit exhibitError(msg);
+        } else {
+            const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+            const QJsonObject obj = doc.object();
+            emit exhibitSaved(obj.value("id").toString(),
+                              obj.value("photos_count").toInt());
+        }
+        reply->deleteLater();
+    });
 }
