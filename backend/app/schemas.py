@@ -74,3 +74,34 @@ class ModelItem(BaseModel):
     id: str
     name: str
     vendor_id: str | None = None
+
+
+class ExhibitCreate(BaseModel):
+    """
+    Payload dla `POST /api/v1/exhibits`.
+
+    Wymagane: name, type, vendor, model, status, storage_place (NOT NULL w bazie).
+    Vendor/model, jeśli nie istnieją w słowniku, zostaną dopisane (lookup_or_insert).
+    """
+    name: str
+    type: Typ
+    vendor: str
+    model: str
+    serial_number: str | None = None
+    part_number: str | None = None
+    revision: str | None = None
+    production_year: int | None = Field(ge=1900, le=2100, default=None)
+    status: Status
+    storage_place: str
+    description: str | None = None
+    value: int | None = Field(ge=0, default=None)
+    has_original_packaging: bool = False
+    photos_base64: list[str] = Field(
+        default_factory=list,
+        description="Lista zdjęć w base64 (JPEG/PNG/HEIC). Każde zostanie zmniejszone do 1800px JPEG q85.",
+    )
+
+
+class ExhibitCreateResponse(BaseModel):
+    id: str
+    photos_count: int
