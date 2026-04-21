@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     # Claude API (do /identify w kolejnym kroku)
     anthropic_api_key: str | None = None
 
+    # Dev mode — /identify zwraca mockowaną odpowiedź zamiast wołać Anthropic API.
+    # Oszczędza $ podczas iteracyjnego debugu UI. Ustaw DEV_MOCK_IDENTIFY=true w .env.
+    dev_mock_identify: bool = False
+
     # Bearer token dla autoryzacji apki mobilnej
     api_token: str | None = None
 
