@@ -14,6 +14,21 @@ JPEG_JAKOSC = 88
 STORAGE_MAX_PX = 1800  # zgodnie z zapisz.py/importuj_mariadb.py — zmniejszenie do bazy
 STORAGE_JPEG_QUALITY = 85
 
+THUMBNAIL_MAX_PX = 400  # miniatury dla GET /exhibits/{id}/thumbnail (similarity results)
+THUMBNAIL_JPEG_QUALITY = 80
+
+
+def make_thumbnail(raw: bytes) -> bytes:
+    """Miniaturka JPEG ~400px dla listy wyników similarity na mobile."""
+    img = Image.open(io.BytesIO(raw))
+    img = ImageOps.exif_transpose(img)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    img.thumbnail((THUMBNAIL_MAX_PX, THUMBNAIL_MAX_PX), Image.Resampling.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=THUMBNAIL_JPEG_QUALITY, optimize=True)
+    return buf.getvalue()
+
 
 def preprocess_for_storage(raw: bytes) -> bytes:
     """

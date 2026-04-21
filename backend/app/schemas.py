@@ -113,6 +113,10 @@ class SimilarResult(BaseModel):
     vendor: str | None = None
     model: str | None = None
     distance: float = Field(description="L2 distance (0 = identyczne, >1 = różne)")
+    thumbnail_b64: str | None = Field(
+        default=None,
+        description="Miniatura JPEG ~400px base64 (inline, żeby uniknąć drugiego round-trip z auth)",
+    )
 
 
 class SimilarResponse(BaseModel):

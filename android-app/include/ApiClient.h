@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QVariantList>
 #include <QVariantMap>
 
 class AppSettings;
@@ -30,6 +31,9 @@ public:
     /// @param photoPath ścieżka do JPG (odczytany i zakodowany do base64)
     Q_INVOKABLE void saveExhibit(const QVariantMap &payload, const QString &photoPath);
 
+    /// POST /api/v1/similar?top_k=N — multipart z JPG. Wynik → similarResult(list).
+    Q_INVOKABLE void findSimilar(const QString &photoPath, int topK = 5);
+
 signals:
     void healthOk(const QString &version, const QString &database);
     void healthError(const QString &message);
@@ -39,6 +43,11 @@ signals:
 
     void exhibitSaved(const QString &id, int photosCount);
     void exhibitError(const QString &message);
+
+    /// @param results lista map: {exhibit_id, name, vendor, model, distance, thumbnail_b64}
+    /// @param indexSize liczba wszystkich eksponatów w LanceDB (informacyjnie)
+    void similarResult(const QVariantList &results, int indexSize);
+    void similarError(const QString &message);
 
 private:
     void sendMultipartPost(const QString &endpoint,
