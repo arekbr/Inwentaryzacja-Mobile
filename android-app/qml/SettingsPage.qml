@@ -9,9 +9,10 @@ Page {
 
     Connections {
         target: apiClient
-        function onHealthOk(version, database) {
+        function onHealthOk(info) {
             page.checking = false
-            statusLabel.text = "✓ API " + version + " • baza: " + database
+            statusLabel.text = "✓ API " + info.version + " • baza: " + info.database
+                + " (" + info.exhibits_count + " eksp.)"
             statusLabel.color = "#2ecc40"
         }
         function onHealthError(msg) {
