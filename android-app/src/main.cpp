@@ -3,6 +3,8 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 
+#include "ApiClient.h"
+#include "AppSettings.h"
 #include "CameraIntent.h"
 
 int main(int argc, char *argv[])
@@ -12,14 +14,22 @@ int main(int argc, char *argv[])
     QGuiApplication::setOrganizationName("bronkibrothers");
     QGuiApplication::setOrganizationDomain("bronkibrothers.com");
 
-    // Material na Android 16 / Pixel 10 Pro ma broken GPU renderer (tęczowe paski,
-    // Image z czarnym tłem mimo Ready). Używamy Basic jako bezpieczny fallback.
-    QQuickStyle::setStyle("Basic");
+    // Android 16 / Pixel 10 Pro:
+    //   Material  → broken GPU (tęczowe paski, czarny Image)
+    //   Basic     → garbled content (TextField/ScrollView render chaos)
+    //   Fusion    → pure-Qt drawing, bez systemowych regresji
+    QQuickStyle::setStyle("Fusion");
 
     CameraIntent cameraIntent;
+    AppSettings appSettings;
+    ApiClient apiClient(&appSettings);
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("cameraIntent", &cameraIntent);
+    auto *ctx = engine.rootContext();
+    ctx->setContextProperty("cameraIntent", &cameraIntent);
+    ctx->setContextProperty("appSettings", &appSettings);
+    ctx->setContextProperty("apiClient", &apiClient);
+
     engine.loadFromModule("App", "Main");
     if (engine.rootObjects().isEmpty())
         return -1;
