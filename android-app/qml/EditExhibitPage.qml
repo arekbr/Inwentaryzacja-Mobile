@@ -166,10 +166,19 @@ Page {
             Layout.preferredHeight: 48
             color: page.saving ? "#555" : "#2ecc40"
             radius: 5
-            Label {
+            RowLayout {
                 anchors.centerIn: parent
-                text: page.saving ? "Zapisuję…" : "Zapisz do bazy"
-                color: "white"; font.pixelSize: 15; font.bold: true
+                spacing: 8
+                BusyIndicator {
+                    running: page.saving
+                    visible: running
+                    Layout.preferredWidth: 22
+                    Layout.preferredHeight: 22
+                }
+                Label {
+                    text: page.saving ? "Zapisuję…" : "Zapisz do bazy"
+                    color: "white"; font.pixelSize: 15; font.bold: true
+                }
             }
             MouseArea {
                 anchors.fill: parent
