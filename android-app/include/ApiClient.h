@@ -38,7 +38,8 @@ public:
     Q_INVOKABLE void getExhibit(const QString &exhibitId);
 
 signals:
-    void healthOk(const QString &version, const QString &database);
+    /// @param info map: {version, database, exhibits_count, clip_index_size, mock_identify, status}
+    void healthOk(const QVariantMap &info);
     void healthError(const QString &message);
 
     void identifyResult(const QVariantMap &artefakt);

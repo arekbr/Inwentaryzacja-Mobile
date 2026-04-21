@@ -38,9 +38,7 @@ void ApiClient::checkHealth()
             emit healthError(reply->errorString());
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-            const QJsonObject obj = doc.object();
-            emit healthOk(obj.value("version").toString(),
-                          obj.value("database").toString());
+            emit healthOk(doc.object().toVariantMap());
         }
         reply->deleteLater();
     });
