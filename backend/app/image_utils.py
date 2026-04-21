@@ -8,8 +8,31 @@ import io
 
 from PIL import Image, ImageOps
 
-MAX_WYMIAR = 2000  # px, max dłuższego boku
+MAX_WYMIAR = 2000  # px, max dłuższego boku dla /identify (wysyłka do Claude)
 JPEG_JAKOSC = 88
+
+STORAGE_MAX_PX = 1800  # zgodnie z zapisz.py/importuj_mariadb.py — zmniejszenie do bazy
+STORAGE_JPEG_QUALITY = 85
+
+
+def preprocess_for_storage(raw: bytes) -> bytes:
+    """
+    Przygotowanie bajtów do zapisu w tabeli `photos` (BLOB).
+    Port 1:1 z `importuj_mariadb.py::zmniejsz_zdjecie()` — 1800px, JPEG q85,
+    EXIF transpose, konwersja do RGB.
+    """
+    img = Image.open(io.BytesIO(raw))
+    img = ImageOps.exif_transpose(img)
+
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+
+    if max(img.size) > STORAGE_MAX_PX:
+        img.thumbnail((STORAGE_MAX_PX, STORAGE_MAX_PX), Image.Resampling.LANCZOS)
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=STORAGE_JPEG_QUALITY, optimize=True)
+    return buf.getvalue()
 
 
 def encode_image_to_base64(raw: bytes) -> tuple[str, str]:
