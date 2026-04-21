@@ -34,6 +34,9 @@ public:
     /// POST /api/v1/similar?top_k=N — multipart z JPG. Wynik → similarResult(list).
     Q_INVOKABLE void findSimilar(const QString &photoPath, int topK = 5);
 
+    /// GET /api/v1/exhibits/{id} — pełny eksponat + pierwsze zdjęcie 800px base64.
+    Q_INVOKABLE void getExhibit(const QString &exhibitId);
+
 signals:
     void healthOk(const QString &version, const QString &database);
     void healthError(const QString &message);
@@ -48,6 +51,9 @@ signals:
     /// @param indexSize liczba wszystkich eksponatów w LanceDB (informacyjnie)
     void similarResult(const QVariantList &results, int indexSize);
     void similarError(const QString &message);
+
+    void exhibitDetail(const QVariantMap &detail);
+    void exhibitDetailError(const QString &message);
 
 private:
     void sendMultipartPost(const QString &endpoint,
