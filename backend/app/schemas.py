@@ -1,0 +1,76 @@
+"""
+Pydantic modele — port 1:1 z `~/Projekty_software/muzeum-inwentarz/inwentarz.py`.
+
+Trzymamy dokładnie ten sam schemat, żeby mobilny backend i offline pipeline
+produkowały spójny JSON wchodzący do tabeli `eksponaty`.
+"""
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+Typ = Literal[
+    "Komputer",
+    "Konsola",
+    "Monitor",
+    "Klawiatura",
+    "Mysz",
+    "Joystick",
+    "Drukarka",
+    "Plotter",
+    "Stacja dyskietek",
+    "Magnetofon",
+    "Modem",
+    "Kaseta",
+    "Dyskietka",
+    "Kartridż",
+    "Płyta CD/DVD",
+    "EPROM",
+    "Kabel",
+    "Zasilacz",
+    "Peryferium",
+    "Dokumentacja",
+    "Opakowanie",
+    "Oprogramowanie",
+    "Część elektroniczna",
+    "Inne",
+]
+
+Status = Literal["Sprawny", "Uszkodzony", "W naprawie", "Niesprawdzony"]
+
+TYPY: list[str] = list(Typ.__args__)  # type: ignore[attr-defined]
+STATUSY: list[str] = list(Status.__args__)  # type: ignore[attr-defined]
+
+
+class Analiza(BaseModel):
+    widoczne_oznaczenia: list[str]
+    cechy_identyfikacyjne: list[str]
+    pewnosc: float = Field(ge=0.0, le=1.0)
+    wymaga_weryfikacji: bool
+    notatki_dla_kuratora: str
+    sugerowane_tagi: list[str]
+
+
+class Artefakt(BaseModel):
+    name: str = Field(description="krótka nazwa eksponatu")
+    type: Typ
+    vendor: str | None = Field(default=None, description="producent; null jeśli nieznany")
+    model: str | None = Field(default=None, description="oznaczenie modelu")
+    serial_number: str | None = None
+    part_number: str | None = None
+    revision: str | None = None
+    production_year: int | None = Field(ge=1900, le=2100, default=None)
+    status: Status
+    description: str
+    has_original_packaging: bool
+    analiza: Analiza
+
+
+class DictItem(BaseModel):
+    id: str
+    name: str
+
+
+class ModelItem(BaseModel):
+    id: str
+    name: str
+    vendor_id: str | None = None
