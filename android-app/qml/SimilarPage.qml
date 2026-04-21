@@ -90,10 +90,19 @@ Page {
                 implicitHeight: 40
                 color: (page.capturedPath !== "" && !page.searching) ? "#00bcd4" : "#333"
                 radius: 5
-                Label {
+                RowLayout {
                     anchors.centerIn: parent
-                    text: page.searching ? "Szukam…" : "Szukaj podobnych"
-                    color: "white"; font.pixelSize: 14; font.bold: true
+                    spacing: 8
+                    BusyIndicator {
+                        running: page.searching
+                        visible: running
+                        Layout.preferredWidth: 22
+                        Layout.preferredHeight: 22
+                    }
+                    Label {
+                        text: page.searching ? "Szukam…" : "Szukaj podobnych"
+                        color: "white"; font.pixelSize: 14; font.bold: true
+                    }
                 }
                 MouseArea {
                     anchors.fill: parent
