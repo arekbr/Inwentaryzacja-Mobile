@@ -59,7 +59,12 @@ signals:
 private:
     void sendMultipartPost(const QString &endpoint,
                            const QString &photoPath,
-                           std::function<void(QNetworkReply *)> onFinish);
+                           std::function<void(QNetworkReply *)> onFinish,
+                           int timeoutMs = 30000);
+
+    /// Mapuje QNetworkReply::NetworkError + response body na ludzki polski komunikat.
+    /// Surowe "Error transferring ... - server replied: ..." jest nieczytelne dla usera.
+    static QString formatNetworkError(QNetworkReply *reply);
 
     AppSettings *m_settings;
     QNetworkAccessManager *m_nam;
