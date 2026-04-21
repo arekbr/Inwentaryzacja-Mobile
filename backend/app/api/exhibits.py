@@ -13,8 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.auth import require_token
 from app.db import db_cursor, lookup_or_insert
-from app.image_utils import preprocess_for_storage
-from app.schemas import ExhibitCreate, ExhibitCreateResponse
+from app.image_utils import make_detail_image, preprocess_for_storage
+from app.schemas import ExhibitCreate, ExhibitCreateResponse, ExhibitDetail
 
 router = APIRouter(
     prefix="/api/v1",
@@ -90,3 +90,60 @@ def create_exhibit(payload: ExhibitCreate) -> ExhibitCreateResponse:
             )
 
     return ExhibitCreateResponse(id=eksponat_id, photos_count=len(processed_photos))
+
+
+_SELECT_EXHIBIT = """
+SELECT
+    e.id, e.name, e.serial_number, e.part_number, e.revision,
+    e.production_year, e.description, e.has_original_packaging,
+    t.name AS type, v.name AS vendor, m.name AS model,
+    s.name AS status, sp.name AS storage_place
+FROM eksponaty e
+LEFT JOIN types t ON t.id = e.type_id
+LEFT JOIN vendors v ON v.id = e.vendor_id
+LEFT JOIN models m ON m.id = e.model_id
+LEFT JOIN statuses s ON s.id = e.status_id
+LEFT JOIN storage_places sp ON sp.id = e.storage_place_id
+WHERE e.id = %s
+"""
+
+
+@router.get("/exhibits/{exhibit_id}", response_model=ExhibitDetail)
+def get_exhibit(exhibit_id: str) -> ExhibitDetail:
+    """Pełne dane eksponatu + pierwsze zdjęcie (~800px base64) do detail view."""
+    with db_cursor() as cur:
+        cur.execute(_SELECT_EXHIBIT, (exhibit_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Nie znaleziono eksponatu")
+
+        cur.execute(
+            "SELECT photo FROM photos WHERE eksponat_id=%s ORDER BY id",
+            (exhibit_id,),
+        )
+        photo_rows = cur.fetchall()
+
+    photo_b64: str | None = None
+    if photo_rows:
+        try:
+            photo_b64 = base64.standard_b64encode(make_detail_image(photo_rows[0]["photo"])).decode("ascii")
+        except Exception:
+            pass  # brak zdjęcia nie powinien blokować całego response
+
+    return ExhibitDetail(
+        id=row["id"],
+        name=row["name"],
+        type=row["type"],
+        vendor=row["vendor"],
+        model=row["model"],
+        serial_number=row["serial_number"],
+        part_number=row["part_number"],
+        revision=row["revision"],
+        production_year=row["production_year"],
+        status=row["status"],
+        storage_place=row["storage_place"],
+        description=row["description"],
+        has_original_packaging=bool(row["has_original_packaging"]),
+        photo_b64=photo_b64,
+        photos_count=len(photo_rows),
+    )

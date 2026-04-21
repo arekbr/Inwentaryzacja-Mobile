@@ -107,6 +107,28 @@ class ExhibitCreateResponse(BaseModel):
     photos_count: int
 
 
+class ExhibitDetail(BaseModel):
+    """Pełne dane eksponatu do widoku szczegółów w apce mobilnej."""
+    id: str
+    name: str
+    type: str | None = None
+    vendor: str | None = None
+    model: str | None = None
+    serial_number: str | None = None
+    part_number: str | None = None
+    revision: str | None = None
+    production_year: int | None = None
+    status: str | None = None
+    storage_place: str | None = None
+    description: str | None = None
+    has_original_packaging: bool = False
+    photo_b64: str | None = Field(
+        default=None,
+        description="Pierwsze zdjęcie JPEG ~800px base64 (do podglądu w detail view)",
+    )
+    photos_count: int = 0
+
+
 class SimilarResult(BaseModel):
     exhibit_id: str
     name: str
