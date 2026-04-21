@@ -173,6 +173,39 @@ void ApiClient::findSimilar(const QString &photoPath, int topK)
     });
 }
 
+void ApiClient::getExhibit(const QString &exhibitId)
+{
+    qInfo() << "[ApiClient] getExhibit" << exhibitId;
+    const QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits/") + exhibitId);
+    QNetworkRequest req(url);
+    if (!m_settings->apiToken().isEmpty()) {
+        req.setRawHeader("Authorization",
+                         ("Bearer " + m_settings->apiToken()).toUtf8());
+    }
+
+    QNetworkReply *reply = m_nam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (reply->error() != QNetworkReply::NoError) {
+            const QByteArray body = reply->readAll();
+            QString msg = reply->errorString();
+            if (!body.isEmpty()) {
+                const QJsonDocument doc = QJsonDocument::fromJson(body);
+                if (doc.isObject() && doc.object().contains("detail"))
+                    msg += ": " + doc.object().value("detail").toString();
+            }
+            emit exhibitDetailError(msg);
+        } else {
+            const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+            if (!doc.isObject()) {
+                emit exhibitDetailError(QStringLiteral("Zła odpowiedź"));
+            } else {
+                emit exhibitDetail(doc.object().toVariantMap());
+            }
+        }
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath)
 {
     qInfo() << "[ApiClient] saveExhibit" << payload.value("name") << "photo:" << photoPath;

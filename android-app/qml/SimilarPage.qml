@@ -125,46 +125,72 @@ Page {
             wrapMode: Text.WordWrap
         }
 
-        // 5 wyników — Repeater z compact row: thumb + tekst + dystans
+        // 5 wyników — Repeater. Każdy wiersz w Rectangle z MouseArea → tap → detail view.
         Repeater {
             model: page.results
-            delegate: RowLayout {
+            delegate: Rectangle {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
-                spacing: 10
+                Layout.preferredHeight: 80
+                color: tapArea.pressed ? "#1a2a3a" : "transparent"
+                radius: 4
 
-                Image {
-                    Layout.preferredWidth: 72
-                    Layout.preferredHeight: 72
-                    source: modelData.thumbnail_b64
-                        ? "data:image/jpeg;base64," + modelData.thumbnail_b64
-                        : ""
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    cache: false
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 4
+                    anchors.rightMargin: 4
+                    spacing: 10
+
+                    Image {
+                        Layout.preferredWidth: 72
+                        Layout.preferredHeight: 72
+                        source: modelData.thumbnail_b64
+                            ? "data:image/jpeg;base64," + modelData.thumbnail_b64
+                            : ""
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        cache: false
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Label {
+                            text: modelData.name || "(bez nazwy)"
+                            color: "white"; font.pixelSize: 14; font.bold: true
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Label {
+                            text: (modelData.vendor || "") + (modelData.model ? " " + modelData.model : "")
+                            color: "#aaa"; font.pixelSize: 12
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Label {
+                            text: "dystans: " + (modelData.distance !== undefined
+                                ? modelData.distance.toFixed(3) : "?")
+                            color: "#888"; font.pixelSize: 11
+                        }
+                    }
+
+                    Label {
+                        text: "›"
+                        color: "#666"; font.pixelSize: 24
+                        Layout.rightMargin: 6
+                    }
                 }
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 2
-
-                    Label {
-                        text: modelData.name || "(bez nazwy)"
-                        color: "white"; font.pixelSize: 14; font.bold: true
-                        elide: Text.ElideRight
-                        Layout.fillWidth: true
-                    }
-                    Label {
-                        text: (modelData.vendor || "") + (modelData.model ? " " + modelData.model : "")
-                        color: "#aaa"; font.pixelSize: 12
-                        elide: Text.ElideRight
-                        Layout.fillWidth: true
-                    }
-                    Label {
-                        text: "dystans: " + (modelData.distance !== undefined
-                            ? modelData.distance.toFixed(3) : "?")
-                        color: "#888"; font.pixelSize: 11
+                MouseArea {
+                    id: tapArea
+                    anchors.fill: parent
+                    onClicked: {
+                        stack.push("ExhibitDetailPage.qml", {
+                            exhibitId: modelData.exhibit_id,
+                            initialData: modelData
+                        })
                     }
                 }
             }
