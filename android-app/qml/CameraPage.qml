@@ -7,6 +7,8 @@ Page {
     title: "Zdjęcie eksponatu"
     property string capturedPath: ""
 
+    property bool identifying: false
+
     Connections {
         target: cameraIntent
         function onPhotoCaptured(path) {
@@ -17,6 +19,24 @@ Page {
         function onPhotoError(msg) {
             console.log("[QML] photoError:", msg)
             statusLabel.text = msg
+        }
+    }
+
+    Connections {
+        target: apiClient
+        function onIdentifyResult(artefakt) {
+            console.log("[QML] identify OK:", JSON.stringify(artefakt))
+            page.identifying = false
+            const name = artefakt.name || "(bez nazwy)"
+            const vendor = artefakt.vendor || "?"
+            const model = artefakt.model || "?"
+            const pew = artefakt.analiza ? artefakt.analiza.pewnosc : "?"
+            statusLabel.text = "AI: " + name + " (" + vendor + " " + model + "), pewność " + pew
+        }
+        function onIdentifyError(msg) {
+            console.log("[QML] identify ERR:", msg)
+            page.identifying = false
+            statusLabel.text = "Identyfikacja: " + msg
         }
     }
 
@@ -103,13 +123,14 @@ Page {
             }
 
             Button {
-                text: "Użyj"
+                text: page.identifying ? "Identyfikuję…" : "Zidentyfikuj"
                 Layout.fillWidth: true
-                opacity: page.capturedPath !== "" ? 1.0 : 0.4
+                opacity: (page.capturedPath !== "" && !page.identifying) ? 1.0 : 0.4
                 onClicked: {
-                    if (page.capturedPath === "") return
-                    console.log("Accept photo:", page.capturedPath)
-                    statusLabel.text = "Następny krok: /identify (TODO)"
+                    if (page.capturedPath === "" || page.identifying) return
+                    page.identifying = true
+                    statusLabel.text = "Wysyłam do AI…"
+                    apiClient.identify(page.capturedPath)
                 }
             }
         }

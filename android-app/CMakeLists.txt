@@ -18,6 +18,10 @@ qt_add_executable(InwentaryzacjaMobile
     src/main.cpp
     src/CameraIntent.cpp
     include/CameraIntent.h
+    src/AppSettings.cpp
+    include/AppSettings.h
+    src/ApiClient.cpp
+    include/ApiClient.h
 )
 
 target_include_directories(InwentaryzacjaMobile PRIVATE include)
@@ -28,6 +32,7 @@ qt_add_qml_module(InwentaryzacjaMobile
     QML_FILES
         qml/Main.qml
         qml/CameraPage.qml
+        qml/SettingsPage.qml
 )
 
 target_link_libraries(InwentaryzacjaMobile PRIVATE

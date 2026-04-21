@@ -10,11 +10,25 @@ ApplicationWindow {
     title: "Inwentaryzacja"
 
     header: ToolBar {
+        id: topBar
+        // Android 15+ edge-to-edge — status bar nachodzi na apkę, SafeArea.margins.top
+        // zwraca 0 w Basic/Fusion. Hardcoded 60 dla statusu + notch Pixel 10 Pro.
+        topPadding: Math.max(SafeArea.margins.top, 60)
+        leftPadding: Math.max(SafeArea.margins.left, 8)
+        rightPadding: Math.max(SafeArea.margins.right, 8)
+        bottomPadding: 4
+
+        background: Rectangle { color: "#1a1a1a" }
+
         RowLayout {
             anchors.fill: parent
+            spacing: 4
+
             ToolButton {
                 text: "‹"
-                font.pixelSize: 28
+                font.pixelSize: 32
+                implicitWidth: 56
+                implicitHeight: 56
                 visible: stack.depth > 1
                 onClicked: stack.pop()
             }
@@ -22,8 +36,20 @@ ApplicationWindow {
                 text: stack.currentItem ? (stack.currentItem.title || "Inwentaryzacja") : "Inwentaryzacja"
                 font.pixelSize: 20
                 font.bold: true
-                Layout.leftMargin: stack.depth > 1 ? 0 : 16
+                color: "white"
+                verticalAlignment: Text.AlignVCenter
+                Layout.leftMargin: stack.depth > 1 ? 0 : 12
                 Layout.fillWidth: true
+            }
+            ToolButton {
+                text: "⚙"
+                font.pixelSize: 24
+                implicitWidth: 56
+                implicitHeight: 56
+                onClicked: {
+                    if (stack.currentItem && stack.currentItem.title === "Ustawienia") return
+                    stack.push("SettingsPage.qml")
+                }
             }
         }
     }
