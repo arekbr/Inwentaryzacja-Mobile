@@ -8,6 +8,7 @@ from app.api import dictionaries, exhibits, identify, similar
 from app.config import settings
 from app.db import db_cursor
 from app.rate_limit import limiter
+from app.security_headers import SecurityHeadersMiddleware
 from app.similarity import index_size
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,9 @@ app = FastAPI(
     version="0.0.6",
     **_docs_kwargs,
 )
+
+# Security headers (XSS/clickjacking/MIME-sniff mitigations).
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Rate limiting (patrz app/rate_limit.py). Handler zwraca 429 + Retry-After.
 app.state.limiter = limiter
