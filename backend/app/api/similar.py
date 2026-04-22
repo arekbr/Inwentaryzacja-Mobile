@@ -61,7 +61,7 @@ async def similar_endpoint(
                     WHERE eksponat_id IN ({placeholders})
                     GROUP BY eksponat_id
                 ) firsts ON p.id = firsts.first_id
-                """,
+                """,  # nosec B608 — `placeholders` to tylko "%s,%s,..." (liczba = len(ids))
                 ids,
             )
             for row in cur.fetchall():

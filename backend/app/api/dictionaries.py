@@ -13,7 +13,7 @@ router = APIRouter(
 
 def _fetch_simple(table: str) -> list[DictItem]:
     with db_cursor() as cur:
-        cur.execute(f"SELECT id, name FROM {table} ORDER BY name")  # noqa: S608 — table jest whitelisted
+        cur.execute(f"SELECT id, name FROM {table} ORDER BY name")  # noqa: S608  # nosec B608
         return [DictItem(**row) for row in cur.fetchall()]
 
 

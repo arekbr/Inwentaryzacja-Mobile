@@ -7,7 +7,10 @@ preprocessingu zdjęć (1800px JPEG q85).
 """
 import base64
 import binascii
+import logging
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -139,8 +142,10 @@ def get_exhibit(request: Request, exhibit_id: str) -> ExhibitDetail:
     if photo_rows:
         try:
             photo_b64 = base64.standard_b64encode(make_detail_image(photo_rows[0]["photo"])).decode("ascii")
-        except Exception:
-            pass  # brak zdjęcia nie powinien blokować całego response
+        except Exception as e:
+            # Brak zdjęcia nie powinien blokować całego response, ale loguj —
+            # ciche except:pass bandit flaguje jako B110 (CWE-703).
+            logger.warning("get_exhibit: thumbnail generation failed for %s: %s", exhibit_id, e)
 
     return ExhibitDetail(
         id=row["id"],
