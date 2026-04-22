@@ -1,15 +1,18 @@
 import base64
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 
 from app.auth import require_token
 from app.db import db_cursor
-from app.image_utils import make_thumbnail
+from app.image_utils import make_thumbnail, validate_image_bytes
+from app.rate_limit import limiter
 from app.schemas import SimilarResponse, SimilarResult
 from app.similarity import index_size, search_similar
 
 logger = logging.getLogger(__name__)
+
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 router = APIRouter(
     prefix="/api/v1",
@@ -19,20 +22,27 @@ router = APIRouter(
 
 
 @router.post("/similar", response_model=SimilarResponse)
+@limiter.limit("30/minute")   # CLIP tanie ale DB hits + thumbs generation
 async def similar_endpoint(
+    request: Request,
     image: UploadFile = File(..., description="Zdjęcie JPEG/PNG/HEIC"),
     top_k: int = Query(10, ge=1, le=50, description="Ile najbliższych zwrócić"),
 ) -> SimilarResponse:
     raw = await image.read()
-    if not raw:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Puste zdjęcie")
+    if len(raw) > MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"Zdjęcie przekracza {MAX_IMAGE_BYTES // 1024 // 1024} MB",
+        )
+    validate_image_bytes(raw, label="zdjęcie")
 
     try:
         matches = search_similar(raw, top_k=top_k)
     except Exception as e:
+        logger.exception("similar: search failed")
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Błąd similarity search: {e}",
+            "Błąd wyszukiwania podobnych",
         ) from e
 
     # Dociągnij miniatury pierwszych zdjęć dla każdego wyniku (jeden SELECT IN).

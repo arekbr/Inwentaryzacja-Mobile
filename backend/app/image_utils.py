@@ -6,10 +6,54 @@ Port 1:1 z `inwentarz.py:zakoduj_obraz()` — te same stałe MAX_WYMIAR/JPEG_JAK
 import base64
 import io
 
+from fastapi import HTTPException, status
 from PIL import Image, ImageOps
+
+# Decompression bomb protection: Pillow domyślnie ostrzega gdy pixel count >
+# 89M, ale dalej dekoduje. Zaostrzamy limit: 50M pixels (~7000×7000) —
+# dużo więcej niż każde realne zdjęcie ale blokuje złośliwe JPEGy
+# które pobudzają się do 40000×40000.
+Image.MAX_IMAGE_PIXELS = 50_000_000
+
+# Formaty które akceptujemy po inspekcji magic bytes (nie Content-Type headera
+# z klienta — ten jest trusted). Pillow `Image.verify()` sam to sprawdza.
+ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "HEIF", "HEIC"}
 
 MAX_WYMIAR = 2000  # px, max dłuższego boku dla /identify (wysyłka do Claude)
 JPEG_JAKOSC = 88
+
+
+def validate_image_bytes(raw: bytes, label: str = "image") -> None:
+    """
+    Waliduje, że `raw` to prawdziwe JPEG/PNG/WEBP/HEIF. Rzuca HTTPException 400
+    jeśli nie — chroni przed polyglot upload (SVG, HTML, ZIP) które atakujący
+    wrzuca udając image/jpeg w Content-Type.
+
+    Używa Image.verify() które dekoduje nagłówek bez pełnego pixel decode —
+    szybkie, bezpieczne, wyłapuje też decompression bomb dzięki MAX_IMAGE_PIXELS.
+    """
+    if not raw:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{label}: pusta zawartość")
+    try:
+        with Image.open(io.BytesIO(raw)) as img:
+            img.verify()
+            fmt = img.format
+    except Image.DecompressionBombError as e:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"{label}: decompression bomb (pixel count > {Image.MAX_IMAGE_PIXELS}M)",
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{label}: niepoprawny obraz ({e})",
+        ) from e
+
+    if fmt not in ALLOWED_FORMATS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{label}: format {fmt} niedozwolony. Akceptujemy {sorted(ALLOWED_FORMATS)}",
+        )
 
 STORAGE_MAX_PX = 1800  # zgodnie z zapisz.py/importuj_mariadb.py — zmniejszenie do bazy
 STORAGE_JPEG_QUALITY = 85
