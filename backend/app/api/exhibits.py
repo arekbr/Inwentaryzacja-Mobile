@@ -9,12 +9,15 @@ import base64
 import binascii
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.auth import require_token
 from app.db import db_cursor, lookup_or_insert
-from app.image_utils import make_detail_image, preprocess_for_storage
+from app.image_utils import make_detail_image, preprocess_for_storage, validate_image_bytes
+from app.rate_limit import limiter
 from app.schemas import ExhibitCreate, ExhibitCreateResponse, ExhibitDetail
+
+MAX_PHOTO_BYTES = 8 * 1024 * 1024   # per photo, po base64 decode
 
 router = APIRouter(
     prefix="/api/v1",
@@ -36,7 +39,8 @@ _INSERT_PHOTO = "INSERT INTO photos (id, eksponat_id, photo) VALUES (%s, %s, %s)
 
 
 @router.post("/exhibits", response_model=ExhibitCreateResponse, status_code=status.HTTP_201_CREATED)
-def create_exhibit(payload: ExhibitCreate) -> ExhibitCreateResponse:
+@limiter.limit("20/minute")   # DB write + BLOB storage — expensive
+def create_exhibit(request: Request, payload: ExhibitCreate) -> ExhibitCreateResponse:
     processed_photos: list[bytes] = []
     for i, b64 in enumerate(payload.photos_base64):
         try:
@@ -44,14 +48,21 @@ def create_exhibit(payload: ExhibitCreate) -> ExhibitCreateResponse:
         except binascii.Error as e:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
-                detail=f"Zdjęcie #{i}: niepoprawny base64 ({e})",
+                detail=f"Zdjęcie #{i}: niepoprawny base64",
             ) from e
+        if len(raw) > MAX_PHOTO_BYTES:
+            raise HTTPException(
+                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Zdjęcie #{i} przekracza {MAX_PHOTO_BYTES // 1024 // 1024} MB",
+            )
+        # Waliduj magic bytes — MIME spoofing + polyglot + decomp bomb protection
+        validate_image_bytes(raw, label=f"zdjęcie #{i}")
         try:
             processed_photos.append(preprocess_for_storage(raw))
         except Exception as e:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
-                detail=f"Zdjęcie #{i}: błąd preprocessingu ({e})",
+                detail=f"Zdjęcie #{i}: błąd przetwarzania",
             ) from e
 
     eksponat_id = str(uuid.uuid4())
@@ -109,7 +120,8 @@ WHERE e.id = %s
 
 
 @router.get("/exhibits/{exhibit_id}", response_model=ExhibitDetail)
-def get_exhibit(exhibit_id: str) -> ExhibitDetail:
+@limiter.limit("60/minute")
+def get_exhibit(request: Request, exhibit_id: str) -> ExhibitDetail:
     """Pełne dane eksponatu + pierwsze zdjęcie (~800px base64) do detail view."""
     with db_cursor() as cur:
         cur.execute(_SELECT_EXHIBIT, (exhibit_id,))
