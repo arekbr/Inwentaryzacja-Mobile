@@ -13,9 +13,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.auth import require_token
 from app.db import db_cursor, lookup_or_insert
-from app.image_utils import make_detail_image, preprocess_for_storage
+from app.image_utils import make_detail_image, preprocess_for_storage, validate_image_bytes
 from app.rate_limit import limiter
 from app.schemas import ExhibitCreate, ExhibitCreateResponse, ExhibitDetail
+
+MAX_PHOTO_BYTES = 8 * 1024 * 1024   # per photo, po base64 decode
 
 router = APIRouter(
     prefix="/api/v1",
@@ -46,14 +48,21 @@ def create_exhibit(request: Request, payload: ExhibitCreate) -> ExhibitCreateRes
         except binascii.Error as e:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
-                detail=f"Zdjęcie #{i}: niepoprawny base64 ({e})",
+                detail=f"Zdjęcie #{i}: niepoprawny base64",
             ) from e
+        if len(raw) > MAX_PHOTO_BYTES:
+            raise HTTPException(
+                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Zdjęcie #{i} przekracza {MAX_PHOTO_BYTES // 1024 // 1024} MB",
+            )
+        # Waliduj magic bytes — MIME spoofing + polyglot + decomp bomb protection
+        validate_image_bytes(raw, label=f"zdjęcie #{i}")
         try:
             processed_photos.append(preprocess_for_storage(raw))
         except Exception as e:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
-                detail=f"Zdjęcie #{i}: błąd preprocessingu ({e})",
+                detail=f"Zdjęcie #{i}: błąd przetwarzania",
             ) from e
 
     eksponat_id = str(uuid.uuid4())
