@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from app.auth import require_token
 from app.claude_client import identify
 from app.config import settings
+from app.image_utils import validate_image_bytes
 from app.mock_fixtures import mock_identify_response
 from app.rate_limit import limiter
 from app.schemas import Artefakt
@@ -12,7 +13,8 @@ from app.schemas import Artefakt
 logger = logging.getLogger(__name__)
 
 MAX_IMAGES = 5
-MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB — Claude API i tak potem skaluje do 2000px
+MAX_IMAGE_BYTES = 8 * 1024 * 1024   # 8 MB. Było 20 MB. Claude i tak skaluje do 2000px,
+                                    # a 5×8 MB = 40 MB RAM per request — znośne.
 
 router = APIRouter(
     prefix="/api/v1",
@@ -42,21 +44,33 @@ async def identify_endpoint(
         return mock_identify_response()
 
     raw_list: list[bytes] = []
-    for img in images:
+    for idx, img in enumerate(images):
         data = await img.read()
         if len(data) > MAX_IMAGE_BYTES:
             raise HTTPException(
                 status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"Zdjęcie {img.filename} przekracza {MAX_IMAGE_BYTES // 1024 // 1024} MB",
+                detail=f"Zdjęcie #{idx+1} przekracza {MAX_IMAGE_BYTES // 1024 // 1024} MB",
             )
+        # Waliduj że to jest faktyczny JPEG/PNG/WEBP/HEIF, nie polyglot
+        # z Content-Type-spoofed headerem. Chroni przed atakiem na Pillow.
+        validate_image_bytes(data, label=f"zdjęcie #{idx+1}")
         raw_list.append(data)
 
     try:
         return await identify(raw_list)
     except RuntimeError as e:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
+        # RuntimeError = config errors (np. brak ANTHROPIC_API_KEY) — logujemy
+        # pełny message po stronie serwera, userowi ogólny komunikat.
+        logger.error("identify config error: %s", e)
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Błąd konfiguracji serwera",
+        ) from e
     except Exception as e:
+        # Błędy z Anthropic SDK mogą zawierać fragmenty payloadu (w tym klucza).
+        # Loguj pełnego trace po stronie serwera, usera informuj ogólnikowo.
+        logger.exception("identify: Claude API failed")
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
-            detail=f"Claude API: {e}",
+            detail="Claude API niedostępne",
         ) from e
