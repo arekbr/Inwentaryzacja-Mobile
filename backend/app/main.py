@@ -9,10 +9,31 @@ from app.similarity import index_size
 
 logger = logging.getLogger(__name__)
 
+# Startup guard: DEV_MOCK_IDENTIFY=true w production = startup fail.
+# W prod chcemy realne wywołania Claude, a mock oszukiwałby usera.
+if settings.is_production and settings.dev_mock_identify:
+    raise RuntimeError(
+        "DEV_MOCK_IDENTIFY=true jest niedozwolone gdy ENVIRONMENT=production. "
+        "Wyłącz mock lub ustaw environment=development."
+    )
+if settings.is_production and not settings.anthropic_api_key:
+    raise RuntimeError(
+        "ANTHROPIC_API_KEY jest wymagane w production (skoro mock wyłączony)."
+    )
+
+# W production wyłącz OpenAPI docs — zmniejsza reconnaissance surface.
+# API nie jest publiczne (Bearer-only), ale czemu ułatwiać mapowanie endpointów?
+_docs_kwargs = {} if not settings.is_production else {
+    "docs_url": None,
+    "redoc_url": None,
+    "openapi_url": None,
+}
+
 app = FastAPI(
     title="Inwentaryzacja Mobile API",
     description="Backend dla mobilnej apki Qt Android — identify/similar/exhibits.",
     version="0.0.6",
+    **_docs_kwargs,
 )
 
 app.include_router(dictionaries.router)
@@ -23,7 +44,18 @@ app.include_router(similar.router)
 
 @app.get("/health")
 def health() -> dict:
-    """Status backendu + podstawowe liczby (do Welcome panel w apce)."""
+    """
+    Health probe.
+
+    **Production**: minimalna odpowiedź `{"status":"ok","version":...}` —
+    żeby nie ułatwiać reconnaissance (brak info o bazie, liczbie eksp., mock).
+    **Development**: pełne stats dla Welcome panel w apce.
+    """
+    base = {"status": "ok", "version": app.version}
+
+    if settings.is_production:
+        return base
+
     exhibits_count = 0
     try:
         with db_cursor() as cur:
@@ -40,8 +72,7 @@ def health() -> dict:
         logger.warning("health: CLIP index size failed: %s", e)
 
     return {
-        "status": "ok",
-        "version": app.version,
+        **base,
         "database": settings.mariadb_database,
         "exhibits_count": exhibits_count,
         "clip_index_size": clip_index,
