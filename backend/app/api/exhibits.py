@@ -9,11 +9,12 @@ import base64
 import binascii
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.auth import require_token
 from app.db import db_cursor, lookup_or_insert
 from app.image_utils import make_detail_image, preprocess_for_storage
+from app.rate_limit import limiter
 from app.schemas import ExhibitCreate, ExhibitCreateResponse, ExhibitDetail
 
 router = APIRouter(
@@ -36,7 +37,8 @@ _INSERT_PHOTO = "INSERT INTO photos (id, eksponat_id, photo) VALUES (%s, %s, %s)
 
 
 @router.post("/exhibits", response_model=ExhibitCreateResponse, status_code=status.HTTP_201_CREATED)
-def create_exhibit(payload: ExhibitCreate) -> ExhibitCreateResponse:
+@limiter.limit("20/minute")   # DB write + BLOB storage — expensive
+def create_exhibit(request: Request, payload: ExhibitCreate) -> ExhibitCreateResponse:
     processed_photos: list[bytes] = []
     for i, b64 in enumerate(payload.photos_base64):
         try:
@@ -109,7 +111,8 @@ WHERE e.id = %s
 
 
 @router.get("/exhibits/{exhibit_id}", response_model=ExhibitDetail)
-def get_exhibit(exhibit_id: str) -> ExhibitDetail:
+@limiter.limit("60/minute")
+def get_exhibit(request: Request, exhibit_id: str) -> ExhibitDetail:
     """Pełne dane eksponatu + pierwsze zdjęcie (~800px base64) do detail view."""
     with db_cursor() as cur:
         cur.execute(_SELECT_EXHIBIT, (exhibit_id,))

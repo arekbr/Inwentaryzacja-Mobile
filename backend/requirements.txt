@@ -14,3 +14,4 @@ torch>=2.4
 open-clip-torch>=2.24
 lancedb>=0.13
 pyarrow>=17.0
+slowapi>=0.1.9

@@ -1,11 +1,12 @@
 import base64
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 
 from app.auth import require_token
 from app.db import db_cursor
 from app.image_utils import make_thumbnail
+from app.rate_limit import limiter
 from app.schemas import SimilarResponse, SimilarResult
 from app.similarity import index_size, search_similar
 
@@ -19,7 +20,9 @@ router = APIRouter(
 
 
 @router.post("/similar", response_model=SimilarResponse)
+@limiter.limit("30/minute")   # CLIP tanie ale DB hits + thumbs generation
 async def similar_endpoint(
+    request: Request,
     image: UploadFile = File(..., description="Zdjęcie JPEG/PNG/HEIC"),
     top_k: int = Query(10, ge=1, le=50, description="Ile najbliższych zwrócić"),
 ) -> SimilarResponse:

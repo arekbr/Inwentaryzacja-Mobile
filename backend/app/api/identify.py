@@ -1,11 +1,12 @@
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
 from app.auth import require_token
 from app.claude_client import identify
 from app.config import settings
 from app.mock_fixtures import mock_identify_response
+from app.rate_limit import limiter
 from app.schemas import Artefakt
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,9 @@ router = APIRouter(
 
 
 @router.post("/identify", response_model=Artefakt)
+@limiter.limit("10/minute")   # Claude Opus = $$$, tight limit per IP
 async def identify_endpoint(
+    request: Request,
     images: list[UploadFile] = File(..., description="1-5 zdjęć tego samego eksponatu"),
 ) -> Artefakt:
     if not 1 <= len(images) <= MAX_IMAGES:

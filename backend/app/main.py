@@ -1,10 +1,13 @@
 import logging
 
 from fastapi import FastAPI
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api import dictionaries, exhibits, identify, similar
 from app.config import settings
 from app.db import db_cursor
+from app.rate_limit import limiter
 from app.similarity import index_size
 
 logger = logging.getLogger(__name__)
@@ -35,6 +38,10 @@ app = FastAPI(
     version="0.0.6",
     **_docs_kwargs,
 )
+
+# Rate limiting (patrz app/rate_limit.py). Handler zwraca 429 + Retry-After.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(dictionaries.router)
 app.include_router(identify.router)
