@@ -96,6 +96,44 @@ class SecuritySmokeTests(unittest.TestCase):
         self.assertEqual(response.headers.get("x-content-type-options"), "nosniff")
         self.assertEqual(response.headers.get("x-frame-options"), "DENY")
 
+    def test_security_headers_are_present_on_error_responses(self):
+        client = load_test_client(DEV_MOCK_IDENTIFY="true")
+        app = importlib.import_module("app.main").app
+        app.state.limiter._storage.reset()
+
+        response_404 = client.get("/definitely-missing")
+
+        for _ in range(10):
+            response = client.post(
+                "/api/v1/identify",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                files={"images": ("img.jpg", self._jpeg_bytes(), "image/jpeg")},
+            )
+            self.assertEqual(response.status_code, 200)
+
+        response_429 = client.post(
+            "/api/v1/identify",
+            headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+            files={"images": ("img.jpg", self._jpeg_bytes(), "image/jpeg")},
+        )
+
+        client_500 = load_test_client()
+        identify_api = importlib.import_module("app.api.identify")
+        with mock.patch.object(identify_api, "identify", side_effect=RuntimeError("config broke")):
+            response_500 = client_500.post(
+                "/api/v1/identify",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                files={"images": ("img.jpg", self._jpeg_bytes(), "image/jpeg")},
+            )
+
+        self.assertEqual(response_404.status_code, 404)
+        self.assertEqual(response_429.status_code, 429)
+        self.assertEqual(response_500.status_code, 500)
+
+        for response in (response_404, response_429, response_500):
+            self.assertEqual(response.headers.get("x-content-type-options"), "nosniff")
+            self.assertEqual(response.headers.get("x-frame-options"), "DENY")
+
     def test_production_disables_docs_and_health_is_minimal(self):
         client = load_test_client(
             ENVIRONMENT="production",
