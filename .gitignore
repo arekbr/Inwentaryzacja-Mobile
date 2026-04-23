@@ -61,3 +61,6 @@ backend/embeddings/
 
 # Claude Code session metadata (local IDE state)
 .claude/
+
+# prod-sim local secrets (never commit)
+infra/prod-sim/secrets/
