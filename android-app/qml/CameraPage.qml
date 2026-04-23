@@ -27,11 +27,12 @@ Page {
         function onIdentifyResult(artefakt) {
             console.log("[QML] identify OK:", JSON.stringify(artefakt))
             page.identifying = false
-            const name = artefakt.name || "(bez nazwy)"
-            const vendor = artefakt.vendor || "?"
-            const model = artefakt.model || "?"
-            const pew = artefakt.analiza ? artefakt.analiza.pewnosc : "?"
-            statusLabel.text = "AI: " + name + " (" + vendor + " " + model + "), pewność " + pew
+            statusLabel.text = ""
+            // Push do ekranu edycji z wypełnionym formularzem
+            stack.push("EditExhibitPage.qml", {
+                artefakt: artefakt,
+                photoPath: page.capturedPath
+            })
         }
         function onIdentifyError(msg) {
             console.log("[QML] identify ERR:", msg)
@@ -123,7 +124,7 @@ Page {
             }
 
             Button {
-                text: page.identifying ? "Identyfikuję…" : "Zidentyfikuj"
+                id: identifyBtn
                 Layout.fillWidth: true
                 opacity: (page.capturedPath !== "" && !page.identifying) ? 1.0 : 0.4
                 onClicked: {
@@ -131,6 +132,20 @@ Page {
                     page.identifying = true
                     statusLabel.text = "Wysyłam do AI…"
                     apiClient.identify(page.capturedPath)
+                }
+                contentItem: RowLayout {
+                    spacing: 6
+                    BusyIndicator {
+                        running: page.identifying
+                        visible: running
+                        Layout.preferredWidth: 20
+                        Layout.preferredHeight: 20
+                    }
+                    Label {
+                        text: page.identifying ? "Identyfikuję…" : "Zidentyfikuj"
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                    }
                 }
             }
         }

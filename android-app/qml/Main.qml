@@ -63,54 +63,156 @@ ApplicationWindow {
     Component {
         id: welcomePage
         Page {
+            id: welcomeRoot
             title: "Inwentaryzacja"
+            property var backendInfo: ({})
+            property string backendError: ""
+            property bool loading: true
+
+            Connections {
+                target: apiClient
+                function onHealthOk(info) {
+                    welcomeRoot.backendInfo = info
+                    welcomeRoot.backendError = ""
+                    welcomeRoot.loading = false
+                }
+                function onHealthError(msg) {
+                    welcomeRoot.backendInfo = ({})
+                    welcomeRoot.backendError = msg
+                    welcomeRoot.loading = false
+                }
+            }
+
+            Component.onCompleted: apiClient.checkHealth()
+
+            // Auto-refresh co 15s gdy Welcome jest widoczny
+            Timer {
+                interval: 15000
+                running: stack.currentItem === welcomeRoot
+                repeat: true
+                onTriggered: apiClient.checkHealth()
+            }
 
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 24
-                spacing: 20
+                spacing: 16
 
-                Item { Layout.fillHeight: true }
+                Item { Layout.preferredHeight: 8 }
 
                 Label {
                     text: "Witaj!"
-                    font.pixelSize: 32
+                    font.pixelSize: 30
                     font.bold: true
+                    color: "white"
                     Layout.alignment: Qt.AlignHCenter
                 }
 
                 Label {
                     text: "Mobilna wersja katalogu\nmuzeum retro-computingu"
                     horizontalAlignment: Text.AlignHCenter
-                    font.pixelSize: 16
-                    opacity: 0.7
+                    font.pixelSize: 14
+                    color: "#aaa"
                     Layout.alignment: Qt.AlignHCenter
                 }
 
-                Item { Layout.preferredHeight: 20 }
+                // Panel statusu backendu — tap żeby odświeżyć
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: statusCol.implicitHeight + 20
+                    color: refreshTap.pressed
+                        ? (welcomeRoot.backendError ? "#4a2a2a" : "#2a4a3a")
+                        : (welcomeRoot.backendError ? "#3a1a1a" : "#1a3a2a")
+                    radius: 6
+                    border.color: welcomeRoot.backendError ? "#ff4136" : "#2ecc40"
+                    border.width: 1
+
+                    MouseArea {
+                        id: refreshTap
+                        anchors.fill: parent
+                        enabled: !welcomeRoot.loading
+                        onClicked: {
+                            welcomeRoot.loading = true
+                            apiClient.checkHealth()
+                        }
+                    }
+
+                    ColumnLayout {
+                        id: statusCol
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 4
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            BusyIndicator {
+                                running: welcomeRoot.loading
+                                visible: running
+                                Layout.preferredWidth: 18
+                                Layout.preferredHeight: 18
+                            }
+                            Label {
+                                text: welcomeRoot.loading ? "Sprawdzam backend…"
+                                    : (welcomeRoot.backendError
+                                        ? "✗ Backend offline"
+                                        : "✓ Backend OK (v" + welcomeRoot.backendInfo.version + ")")
+                                color: "white"
+                                font.pixelSize: 14
+                                font.bold: true
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+
+                        Label {
+                            text: welcomeRoot.backendError
+                                ? welcomeRoot.backendError
+                                : "Baza: " + (welcomeRoot.backendInfo.database || "?")
+                                  + " • " + (welcomeRoot.backendInfo.exhibits_count || 0) + " eksp."
+                            color: "#ccc"
+                            font.pixelSize: 12
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            visible: !welcomeRoot.loading
+                        }
+
+                        Label {
+                            text: "CLIP index: " + (welcomeRoot.backendInfo.clip_index_size || 0)
+                                + (welcomeRoot.backendInfo.mock_identify ? "  •  ⚙ MOCK AI" : "")
+                            color: "#999"
+                            font.pixelSize: 11
+                            Layout.fillWidth: true
+                            visible: !welcomeRoot.loading && !welcomeRoot.backendError
+                        }
+                    }
+                }
 
                 Button {
                     text: "Zrób zdjęcie eksponatu"
                     Layout.fillWidth: true
                     highlighted: true
+                    enabled: !welcomeRoot.backendError
+                    opacity: welcomeRoot.backendError ? 0.5 : 1.0
                     onClicked: stack.push("CameraPage.qml")
                 }
 
                 Button {
-                    text: "Znajdź podobne (wkrótce)"
+                    text: "Znajdź podobne"
                     Layout.fillWidth: true
-                    opacity: 0.4
-                    onClicked: {}
-                }
-
-                Label {
-                    text: "Środowisko: " + Qt.platform.os
-                    font.pixelSize: 12
-                    opacity: 0.5
-                    Layout.alignment: Qt.AlignHCenter
+                    enabled: !welcomeRoot.backendError
+                    opacity: welcomeRoot.backendError ? 0.5 : 1.0
+                    onClicked: stack.push("SimilarPage.qml")
                 }
 
                 Item { Layout.fillHeight: true }
+
+                Label {
+                    text: "Środowisko: " + Qt.platform.os
+                    font.pixelSize: 11
+                    color: "#666"
+                    Layout.alignment: Qt.AlignHCenter
+                }
             }
         }
     }
