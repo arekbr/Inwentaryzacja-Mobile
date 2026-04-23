@@ -80,6 +80,11 @@ class SecuritySmokeTests(unittest.TestCase):
             "photos_base64": photos_base64 or [],
         }
 
+    def _jpeg_bytes(self, size=(32, 32), color=(0, 255, 0)):
+        jpeg = io.BytesIO()
+        Image.new("RGB", size, color).save(jpeg, format="JPEG")
+        return jpeg.getvalue()
+
     def test_missing_bearer_token_returns_401_with_challenge(self):
         client = load_test_client()
 
@@ -441,6 +446,66 @@ class SecuritySmokeTests(unittest.TestCase):
             )
 
         self.assertEqual(response_31.status_code, 429)
+
+    def test_identify_rejects_more_than_five_images(self):
+        client = load_test_client()
+        image_bytes = self._jpeg_bytes()
+        files = [
+            ("images", (f"img{i}.jpg", image_bytes, "image/jpeg"))
+            for i in range(6)
+        ]
+
+        response = client.post(
+            "/api/v1/identify",
+            headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+            files=files,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Wymagane 1-5 zdjęć, otrzymano 6")
+
+    def test_identify_rejects_oversized_image(self):
+        client = load_test_client()
+        identify_api = importlib.import_module("app.api.identify")
+
+        with mock.patch.object(identify_api, "MAX_IMAGE_BYTES", 4):
+            response = client.post(
+                "/api/v1/identify",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                files={"images": ("img.jpg", b"ABCDEF", "image/jpeg")},
+            )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json()["detail"], "Zdjęcie #1 przekracza 0 MB")
+
+    def test_identify_rejects_invalid_image_payload(self):
+        client = load_test_client()
+
+        response = client.post(
+            "/api/v1/identify",
+            headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+            files={"images": ("img.svg", b"<svg onload=alert(1)></svg>", "image/svg+xml")},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("zdjęcie #1: niepoprawny obraz", response.json()["detail"])
+
+    def test_identify_dev_mock_returns_mock_payload_without_real_api(self):
+        client = load_test_client(DEV_MOCK_IDENTIFY="true")
+        identify_api = importlib.import_module("app.api.identify")
+
+        with mock.patch.object(identify_api, "identify", side_effect=AssertionError("real API should not be called")):
+            response = client.post(
+                "/api/v1/identify",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                files={"images": ("img.jpg", self._jpeg_bytes(), "image/jpeg")},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["name"], "Klawiatura Amiga (mock)")
+        self.assertEqual(body["type"], "Klawiatura")
+        self.assertIn("MOCK", body["description"])
 
 
 if __name__ == "__main__":
