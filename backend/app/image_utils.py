@@ -45,7 +45,7 @@ def validate_image_bytes(raw: bytes, label: str = "image") -> None:
             w, h = img.size
             if w * h > Image.MAX_IMAGE_PIXELS:
                 raise HTTPException(
-                    status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    status.HTTP_413_CONTENT_TOO_LARGE,
                     f"{label}: decompression bomb — {w}×{h} = {w*h/1e6:.0f}M pixeli > limit {Image.MAX_IMAGE_PIXELS/1e6:.0f}M",
                 )
             img.verify()
@@ -54,7 +54,7 @@ def validate_image_bytes(raw: bytes, label: str = "image") -> None:
         raise   # don't wrap our own 413 bomb response
     except Image.DecompressionBombError as e:
         raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status.HTTP_413_CONTENT_TOO_LARGE,
             f"{label}: decompression bomb error",
         ) from e
     except Exception as e:

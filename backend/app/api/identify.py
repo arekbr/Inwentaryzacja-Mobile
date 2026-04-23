@@ -48,7 +48,7 @@ async def identify_endpoint(
         data = await img.read()
         if len(data) > MAX_IMAGE_BYTES:
             raise HTTPException(
-                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"Zdjęcie #{idx+1} przekracza {MAX_IMAGE_BYTES // 1024 // 1024} MB",
             )
         # Waliduj że to jest faktyczny JPEG/PNG/WEBP/HEIF, nie polyglot
