@@ -5,14 +5,18 @@ import QtQuick.Layouts
 Page {
     id: page
     title: "Ustawienia"
+    property bool checking: false
 
     Connections {
         target: apiClient
-        function onHealthOk(version, database) {
-            statusLabel.text = "✓ API " + version + " • baza: " + database
+        function onHealthOk(info) {
+            page.checking = false
+            statusLabel.text = "✓ API " + info.version + " • baza: " + info.database
+                + " (" + info.exhibits_count + " eksp.)"
             statusLabel.color = "#2ecc40"
         }
         function onHealthError(msg) {
+            page.checking = false
             statusLabel.text = "✗ " + msg
             statusLabel.color = "#ff4136"
         }
@@ -119,17 +123,32 @@ Page {
             }
 
             Button {
-                text: "Test połączenia"
                 Layout.fillWidth: true
                 Layout.leftMargin: 24
                 Layout.rightMargin: 24
+                enabled: !page.checking
                 onClicked: {
                     // Zapisz wartości przed testem (gdy user nie kliknął jeszcze w inne pole)
                     appSettings.apiUrl = urlInput.text
                     appSettings.apiToken = tokenInput.text
+                    page.checking = true
                     statusLabel.text = "Sprawdzam…"
                     statusLabel.color = "white"
                     apiClient.checkHealth()
+                }
+                contentItem: RowLayout {
+                    spacing: 6
+                    BusyIndicator {
+                        running: page.checking
+                        visible: running
+                        Layout.preferredWidth: 20
+                        Layout.preferredHeight: 20
+                    }
+                    Label {
+                        text: page.checking ? "Sprawdzam…" : "Test połączenia"
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                    }
                 }
             }
 
