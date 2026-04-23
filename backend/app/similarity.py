@@ -42,7 +42,7 @@ def _raise_if_unavailable() -> None:
         from fastapi import HTTPException, status
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Similarity search niedostępny: {_IMPORT_ERROR}",
+            detail="Similarity search chwilowo niedostępny",
         )
 
 

@@ -55,7 +55,7 @@ def create_exhibit(request: Request, payload: ExhibitCreate) -> ExhibitCreateRes
             ) from e
         if len(raw) > MAX_PHOTO_BYTES:
             raise HTTPException(
-                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"Zdjęcie #{i} przekracza {MAX_PHOTO_BYTES // 1024 // 1024} MB",
             )
         # Waliduj magic bytes — MIME spoofing + polyglot + decomp bomb protection

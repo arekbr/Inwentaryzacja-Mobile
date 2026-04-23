@@ -31,13 +31,15 @@ async def similar_endpoint(
     raw = await image.read()
     if len(raw) > MAX_IMAGE_BYTES:
         raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status.HTTP_413_CONTENT_TOO_LARGE,
             f"Zdjęcie przekracza {MAX_IMAGE_BYTES // 1024 // 1024} MB",
         )
     validate_image_bytes(raw, label="zdjęcie")
 
     try:
         matches = search_similar(raw, top_k=top_k)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("similar: search failed")
         raise HTTPException(

@@ -29,4 +29,7 @@ signals:
 
 private:
     QSettings m_settings;
+#ifdef Q_OS_ANDROID
+    QString m_apiToken;
+#endif
 };
