@@ -30,18 +30,32 @@ def validate_image_bytes(raw: bytes, label: str = "image") -> None:
     wrzuca udając image/jpeg w Content-Type.
 
     Używa Image.verify() które dekoduje nagłówek bez pełnego pixel decode —
-    szybkie, bezpieczne, wyłapuje też decompression bomb dzięki MAX_IMAGE_PIXELS.
+    szybkie, bezpieczne. Explicit pixel count check zapobiega decompression bomb
+    (Pillow `MAX_IMAGE_PIXELS` emituje tylko `DecompressionBombWarning`, nie Error,
+    dla rozmiarów między MAX a 2×MAX — fuzz 2026-04-23 wyłapał ten gap).
     """
     if not raw:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{label}: pusta zawartość")
     try:
         with Image.open(io.BytesIO(raw)) as img:
+            # Check pixel count BEFORE verify — decompression bomb protection.
+            # Pillow WARN only fires dla rozmiarów > MAX, ale nie raise. Musimy
+            # explicit check + reject. Limit jest hard — atakujący nie może
+            # wysłać 50M+ pix nawet gdy bytes są małe (np. JPEG compression).
+            w, h = img.size
+            if w * h > Image.MAX_IMAGE_PIXELS:
+                raise HTTPException(
+                    status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    f"{label}: decompression bomb — {w}×{h} = {w*h/1e6:.0f}M pixeli > limit {Image.MAX_IMAGE_PIXELS/1e6:.0f}M",
+                )
             img.verify()
             fmt = img.format
+    except HTTPException:
+        raise   # don't wrap our own 413 bomb response
     except Image.DecompressionBombError as e:
         raise HTTPException(
             status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            f"{label}: decompression bomb (pixel count > {Image.MAX_IMAGE_PIXELS}M)",
+            f"{label}: decompression bomb error",
         ) from e
     except Exception as e:
         raise HTTPException(
