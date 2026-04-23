@@ -1,0 +1,80 @@
+version: "3.9"
+
+# Symulacja public deploy (Mac, colima). Nie produkcja — edukacja + testy bezp.
+# Stack: Caddy (HTTPS self-signed) → FastAPI (ENV=production) → MariaDB.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: ../infra/prod-sim/Dockerfile
+    environment:
+      ENVIRONMENT: production
+      MARIADB_HOST: db
+      MARIADB_PORT: "3306"
+      MARIADB_USER: inwentaryzacja
+      MARIADB_PASSWORD_FILE: /run/secrets/db_password
+      MARIADB_DATABASE: zbiory
+      API_TOKEN_FILE: /run/secrets/api_token
+      ANTHROPIC_API_KEY: "sk-fake-not-used-mock-always-on"
+      DEV_MOCK_IDENTIFY: "false"   # prod mode sprawdza że mock=false; true = startup fail
+    # Secrets inline dla prostoty — w prawdziwym deploy użyj docker secrets/swarm/k8s.
+    # Backend code czyta API_TOKEN/MARIADB_PASSWORD z env — tu podstawiamy plainem.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        export MARIADB_PASSWORD=$$(cat $$MARIADB_PASSWORD_FILE)
+        export API_TOKEN=$$(cat $$API_TOKEN_FILE)
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    secrets:
+      - db_password
+      - api_token
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11.8
+    environment:
+      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+      MARIADB_DATABASE: zbiory
+      MARIADB_USER: inwentaryzacja
+      MARIADB_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+      - db_root_password
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  db_root_password:
+    file: ./secrets/db_root_password.txt
+  api_token:
+    file: ./secrets/api_token.txt
+
+volumes:
+  caddy_data:
+  caddy_config:

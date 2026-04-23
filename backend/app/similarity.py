@@ -4,26 +4,51 @@ Similarity search oparty o CLIP embeddings + LanceDB.
 - Model CLIP (domyślnie ViT-B-32/openai) ładowany raz, lazy, przy pierwszym użyciu
 - Embeddingi trzymane w LanceDB (file-based vector store w `data/lancedb/`)
 - Apple Silicon: MPS (GPU), CUDA jeśli dostępne, inaczej CPU
+
+Graceful degradation: jeśli torch/open_clip/lancedb nie załadują się przy
+starcie (np. mismatch wersji torch/torchvision w kontenerze), `/similar`
+będzie zwracać 503, ale reszta backendu startuje normalnie.
 """
 from __future__ import annotations
 
 import io
+import logging
 from functools import lru_cache
 from pathlib import Path
 
-import lancedb
-import numpy as np
-import open_clip
-import torch
 from PIL import Image
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
+# Lazy import — jeśli importy zawiodą, zapamiętujemy error i zwracamy go
+# z każdego call'a. Backend startuje niezależnie od stanu CLIP stacka.
+_IMPORT_ERROR: str | None = None
+try:
+    import lancedb
+    import numpy as np
+    import open_clip
+    import torch
+except Exception as e:    # pragma: no cover — env-dependent
+    _IMPORT_ERROR = f"{type(e).__name__}: {e}"
+    logger.warning("similarity: stack nie załadowany — /similar zwróci 503. %s", _IMPORT_ERROR)
+
 TABLE_NAME = "exhibits"
 
 
+def _raise_if_unavailable() -> None:
+    if _IMPORT_ERROR is not None:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Similarity search niedostępny: {_IMPORT_ERROR}",
+        )
+
+
 @lru_cache(maxsize=1)
-def _device() -> torch.device:
+def _device():
+    _raise_if_unavailable()
     if torch.backends.mps.is_available():
         return torch.device("mps")
     if torch.cuda.is_available():
@@ -32,8 +57,9 @@ def _device() -> torch.device:
 
 
 @lru_cache(maxsize=1)
-def _load_model() -> tuple[torch.nn.Module, object]:
+def _load_model():
     """Lazy load: dopiero przy pierwszym wywołaniu embed_image."""
+    _raise_if_unavailable()
     model, _, preprocess = open_clip.create_model_and_transforms(
         settings.clip_model,
         pretrained=settings.clip_pretrained,
@@ -43,11 +69,12 @@ def _load_model() -> tuple[torch.nn.Module, object]:
     return model, preprocess
 
 
-def embed_image(raw_bytes: bytes) -> np.ndarray:
+def embed_image(raw_bytes: bytes):
     """
     Zwraca L2-znormalizowany CLIP embedding (float32) dla zdjęcia.
     ViT-B-32 → 512-wymiarowy wektor.
     """
+    _raise_if_unavailable()
     model, preprocess = _load_model()
     img = Image.open(io.BytesIO(raw_bytes))
     if img.mode != "RGB":
@@ -62,13 +89,15 @@ def embed_image(raw_bytes: bytes) -> np.ndarray:
 
 
 @lru_cache(maxsize=1)
-def _get_db() -> lancedb.DBConnection:
+def _get_db():
+    _raise_if_unavailable()
     path = Path(settings.lancedb_path)
     path.mkdir(parents=True, exist_ok=True)
     return lancedb.connect(str(path))
 
 
-def _get_table() -> lancedb.table.Table | None:
+def _get_table():
+    _raise_if_unavailable()
     db = _get_db()
     if TABLE_NAME not in db.list_tables().tables:
         return None
@@ -81,6 +110,7 @@ def search_similar(raw_bytes: bytes, top_k: int = 10) -> list[dict]:
     Zwraca listę dictów: exhibit_id, name, vendor, model, _distance.
     Pusta lista jeśli indeks nie istnieje.
     """
+    _raise_if_unavailable()
     tbl = _get_table()
     if tbl is None:
         return []
@@ -90,9 +120,13 @@ def search_similar(raw_bytes: bytes, top_k: int = 10) -> list[dict]:
 
 
 def index_exists() -> bool:
+    if _IMPORT_ERROR is not None:
+        return False
     return _get_table() is not None
 
 
 def index_size() -> int:
+    if _IMPORT_ERROR is not None:
+        return 0
     tbl = _get_table()
     return tbl.count_rows() if tbl else 0
