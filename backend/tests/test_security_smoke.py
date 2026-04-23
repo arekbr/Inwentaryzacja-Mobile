@@ -507,6 +507,27 @@ class SecuritySmokeTests(unittest.TestCase):
         self.assertEqual(body["type"], "Klawiatura")
         self.assertIn("MOCK", body["description"])
 
+    def test_identify_rate_limit_returns_429_on_11th_request(self):
+        client = load_test_client(DEV_MOCK_IDENTIFY="true")
+        app = importlib.import_module("app.main").app
+        app.state.limiter._storage.reset()
+
+        for _ in range(10):
+            response = client.post(
+                "/api/v1/identify",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                files={"images": ("img.jpg", self._jpeg_bytes(), "image/jpeg")},
+            )
+            self.assertEqual(response.status_code, 200)
+
+        response_11 = client.post(
+            "/api/v1/identify",
+            headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+            files={"images": ("img.jpg", self._jpeg_bytes(), "image/jpeg")},
+        )
+
+        self.assertEqual(response_11.status_code, 429)
+
 
 if __name__ == "__main__":
     unittest.main()
