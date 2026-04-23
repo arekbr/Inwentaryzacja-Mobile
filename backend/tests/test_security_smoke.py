@@ -528,6 +528,36 @@ class SecuritySmokeTests(unittest.TestCase):
 
         self.assertEqual(response_11.status_code, 429)
 
+    def test_identify_runtime_error_returns_500_with_generic_message(self):
+        client = load_test_client()
+        identify_api = importlib.import_module("app.api.identify")
+
+        with mock.patch.object(identify_api, "identify", side_effect=RuntimeError("missing ANTHROPIC_API_KEY")):
+            response = client.post(
+                "/api/v1/identify",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                files={"images": ("img.jpg", self._jpeg_bytes(), "image/jpeg")},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Błąd konfiguracji serwera")
+        self.assertNotIn("ANTHROPIC_API_KEY", response.text)
+
+    def test_identify_upstream_failure_returns_502_with_generic_message(self):
+        client = load_test_client()
+        identify_api = importlib.import_module("app.api.identify")
+
+        with mock.patch.object(identify_api, "identify", side_effect=Exception("upstream exploded with payload details")):
+            response = client.post(
+                "/api/v1/identify",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                files={"images": ("img.jpg", self._jpeg_bytes(), "image/jpeg")},
+            )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.json()["detail"], "Claude API niedostępne")
+        self.assertNotIn("payload details", response.text)
+
 
 if __name__ == "__main__":
     unittest.main()
