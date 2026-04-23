@@ -1,0 +1,26 @@
+# Caddy reverse proxy dla symulacji public deploy.
+# Self-signed TLS (Caddy local CA) — dla prawdziwego deploy zamienić na domenę
+# i Caddy wyda cert via Let's Encrypt automatycznie.
+
+inwentaryzacja.local {
+    tls internal
+
+    # HSTS + dodatkowe security headery.
+    # Pozostałe headery (X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+    # Permissions-Policy) dodaje SecurityHeadersMiddleware w FastAPI — Caddy
+    # dokłada tylko HSTS bo wymaga HTTPS context.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    # Rate limit (dodatkowa warstwa poza slowapi w FastAPI) — na tym poziomie
+    # to tylko placeholder — prawdziwy rate limit i fail2ban dopinamy na deploy.
+
+    reverse_proxy backend:8000 {
+        # Poprawnie propagowane X-Forwarded-* żeby slowapi widział real IP
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
