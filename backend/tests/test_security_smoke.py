@@ -59,6 +59,9 @@ def load_test_client(**env_overrides) -> TestClient:
 
 
 class SecuritySmokeTests(unittest.TestCase):
+    def setUp(self):
+        purge_app_modules()
+
     def _exhibit_payload(self, *, photos_base64=None):
         return {
             "name": "Commodore 64",
@@ -364,6 +367,80 @@ class SecuritySmokeTests(unittest.TestCase):
         self.assertIsNone(body["photo_b64"])
         self.assertEqual(body["photos_count"], 1)
         self.assertEqual(body["name"], "Atari 800XL")
+
+    def test_default_rate_limit_returns_429_on_61st_request(self):
+        client = load_test_client()
+        app = importlib.import_module("app.main").app
+        dictionaries = importlib.import_module("app.api.dictionaries")
+        app.state.limiter._storage.reset()
+
+        class FakeCursor:
+            def execute(self, sql, params=None):
+                self.last_query = (sql, params)
+
+            def fetchall(self):
+                return [{"id": "1", "name": "Komputer"}]
+
+        @contextmanager
+        def fake_db_cursor():
+            yield FakeCursor()
+
+        with mock.patch.object(dictionaries, "db_cursor", fake_db_cursor):
+            for _ in range(60):
+                response = client.get(
+                    "/api/v1/dictionaries/types",
+                    headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                )
+                self.assertEqual(response.status_code, 200)
+
+            response_61 = client.get(
+                "/api/v1/dictionaries/types",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+            )
+
+        self.assertEqual(response_61.status_code, 429)
+
+    def test_similar_custom_rate_limit_returns_429_on_31st_request(self):
+        client = load_test_client()
+        app = importlib.import_module("app.main").app
+        similar = importlib.import_module("app.api.similar")
+        app.state.limiter._storage.reset()
+
+        image = io.BytesIO()
+        Image.new("RGB", (16, 16), (255, 0, 0)).save(image, format="JPEG")
+        file_payload = {"image": ("probe.jpg", image.getvalue(), "image/jpeg")}
+
+        @contextmanager
+        def fake_db_cursor():
+            class FakeCursor:
+                def execute(self, sql, params=None):
+                    self.last_query = (sql, params)
+
+                def fetchall(self):
+                    return []
+
+            yield FakeCursor()
+
+        with (
+            mock.patch.object(similar, "search_similar", return_value=[]),
+            mock.patch.object(similar, "index_size", return_value=0),
+            mock.patch.object(similar, "db_cursor", fake_db_cursor),
+        ):
+            for _ in range(30):
+                response = client.post(
+                    "/api/v1/similar",
+                    headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                    files=file_payload,
+                )
+                self.assertEqual(response.status_code, 200)
+
+            response_31 = client.post(
+                "/api/v1/similar",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                files=file_payload,
+            )
+
+        self.assertEqual(response_31.status_code, 429)
 
 
 if __name__ == "__main__":
