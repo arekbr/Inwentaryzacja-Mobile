@@ -12,6 +12,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSslError>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -20,6 +21,17 @@ ApiClient::ApiClient(AppSettings *settings, QObject *parent)
     , m_settings(settings)
     , m_nam(new QNetworkAccessManager(this))
 {
+    // L-01: loguj wszystkie błędy SSL (cert expired/self-signed/MITM hints).
+    // Domyślnie QNAM cicho akceptuje zaufane certy i fail-closuje przy nieznanych
+    // — to handler ŁAPIE problem zanim Qt go odrzuci, dając diagnostykę.
+    // Nie wywołujemy ignoreSslErrors() — chcemy żeby fail-closed default Qt zostało.
+    connect(m_nam, &QNetworkAccessManager::sslErrors, this,
+            [](QNetworkReply *reply, const QList<QSslError> &errors) {
+                for (const QSslError &err : errors) {
+                    qWarning() << "[ApiClient] SSL error:" << err.errorString()
+                               << "url:" << reply->url().toString();
+                }
+            });
 }
 
 QString ApiClient::formatNetworkError(QNetworkReply *reply)
