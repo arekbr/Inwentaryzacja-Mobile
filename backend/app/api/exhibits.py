@@ -16,9 +16,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.auth import require_token
 from app.db import db_cursor, lookup_or_insert
-from app.image_utils import make_detail_image, preprocess_for_storage, validate_image_bytes
+from app.image_utils import make_detail_image, make_thumbnail, preprocess_for_storage, validate_image_bytes
 from app.rate_limit import limiter
-from app.schemas import ExhibitCreate, ExhibitCreateResponse, ExhibitDetail
+from app.schemas import (
+    ExhibitCreate,
+    ExhibitCreateResponse,
+    ExhibitDetail,
+    ExhibitListItem,
+    ExhibitListResponse,
+)
 
 MAX_PHOTO_BYTES = 8 * 1024 * 1024   # per photo, po base64 decode
 
@@ -104,6 +110,86 @@ def create_exhibit(request: Request, payload: ExhibitCreate) -> ExhibitCreateRes
             )
 
     return ExhibitCreateResponse(id=eksponat_id, photos_count=len(processed_photos))
+
+
+_SELECT_LIST = """
+SELECT
+    e.id, e.name,
+    v.name AS vendor, m.name AS model
+FROM eksponaty e
+LEFT JOIN vendors v ON v.id = e.vendor_id
+LEFT JOIN models m ON m.id = e.model_id
+ORDER BY e.name ASC, e.id ASC
+LIMIT %s OFFSET %s
+"""
+
+
+@router.get("/exhibits", response_model=ExhibitListResponse)
+@limiter.limit("60/minute")
+def list_exhibits(
+    request: Request,
+    page: int = 1,
+    per_page: int = 50,
+) -> ExhibitListResponse:
+    """Lista eksponatów alfabetycznie + miniatury (~400px) pierwszych zdjęć."""
+    if page < 1:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "page musi być >= 1")
+    if per_page < 1 or per_page > 100:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "per_page musi być w 1..100")
+
+    offset = (page - 1) * per_page
+
+    with db_cursor() as cur:
+        cur.execute("SELECT COUNT(*) AS c FROM eksponaty")
+        total_row = cur.fetchone()
+        total = int(total_row["c"]) if total_row else 0
+
+        cur.execute(_SELECT_LIST, (per_page, offset))
+        rows = cur.fetchall()
+
+        thumbs_by_id: dict[str, str] = {}
+        if rows:
+            ids = [row["id"] for row in rows]
+            placeholders = ",".join(["%s"] * len(ids))
+            cur.execute(
+                f"""
+                SELECT p.eksponat_id, p.photo
+                FROM photos p
+                INNER JOIN (
+                    SELECT eksponat_id, MIN(id) AS first_id
+                    FROM photos
+                    WHERE eksponat_id IN ({placeholders})
+                    GROUP BY eksponat_id
+                ) firsts ON p.id = firsts.first_id
+                """,  # noqa: S608  (placeholders zbudowane z len(ids), nie z user input)
+                ids,
+            )
+            for prow in cur.fetchall():
+                eid = prow["eksponat_id"]
+                blob = prow["photo"]
+                try:
+                    thumbs_by_id[eid] = base64.standard_b64encode(make_thumbnail(blob)).decode("ascii")
+                except Exception as e:
+                    logger.warning("list_exhibits: thumbnail failed for %s: %s", eid, e)
+
+    results = [
+        ExhibitListItem(
+            id=row["id"],
+            name=row["name"],
+            vendor=row["vendor"],
+            model=row["model"],
+            thumbnail_b64=thumbs_by_id.get(row["id"]),
+        )
+        for row in rows
+    ]
+
+    return ExhibitListResponse(
+        results=results,
+        total=total,
+        page=page,
+        per_page=per_page,
+        has_more=offset + len(rows) < total,
+    )
 
 
 _SELECT_EXHIBIT = """
