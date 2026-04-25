@@ -268,6 +268,76 @@ class SecuritySmokeTests(unittest.TestCase):
         self.assertIn("INSERT INTO photos", fake_cursor.calls[1][0])
         self.assertEqual(fake_cursor.calls[1][1], ("photo-uuid-1", "exhibit-uuid", b"processed-jpeg"))
 
+    def test_exhibits_multipart_success_path_persists_streamed_photo(self):
+        """C-D02: multipart wariant zapisu — Form fields + UploadFile zamiast JSON+base64."""
+        client = load_test_client()
+        exhibits = importlib.import_module("app.api.exhibits")
+
+        class FakeCursor:
+            def __init__(self):
+                self.calls = []
+
+            def execute(self, sql, params=None):
+                self.calls.append((sql, params))
+
+        fake_cursor = FakeCursor()
+
+        @contextmanager
+        def fake_db_cursor():
+            yield fake_cursor
+
+        lookup_ids = iter(["type-id", "vendor-id", "model-id", "status-id", "storage-id"])
+        meta_fields = {
+            "name": "Commodore 64",
+            "type": "Komputer",
+            "vendor": "Commodore",
+            "model": "C64",
+            "status": "Niesprawdzony",
+            "storage_place": "Regał A",
+            "production_year": "1984",
+            "has_original_packaging": "false",
+        }
+        photo_bytes = self._jpeg_bytes(size=(16, 16))
+
+        with (
+            mock.patch.object(exhibits, "db_cursor", fake_db_cursor),
+            mock.patch.object(exhibits, "lookup_or_insert", side_effect=lambda *args, **kwargs: next(lookup_ids)),
+            mock.patch.object(exhibits, "validate_image_bytes"),
+            mock.patch.object(exhibits, "preprocess_for_storage", return_value=b"processed-multipart-jpeg"),
+            mock.patch.object(exhibits.uuid, "uuid4", side_effect=["multi-exhibit-uuid", "multi-photo-uuid-1"]),
+        ):
+            response = client.post(
+                "/api/v1/exhibits/multipart",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                data=meta_fields,
+                files={"photos": ("test.jpg", photo_bytes, "image/jpeg")},
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json(), {"id": "multi-exhibit-uuid", "photos_count": 1})
+        self.assertEqual(len(fake_cursor.calls), 2)
+        self.assertIn("INSERT INTO eksponaty", fake_cursor.calls[0][0])
+        self.assertEqual(fake_cursor.calls[0][1][0], "multi-exhibit-uuid")
+        self.assertIn("INSERT INTO photos", fake_cursor.calls[1][0])
+        self.assertEqual(fake_cursor.calls[1][1], ("multi-photo-uuid-1", "multi-exhibit-uuid", b"processed-multipart-jpeg"))
+
+    def test_exhibits_multipart_rejects_oversized_photo(self):
+        """C-D02: multipart endpoint też respektuje MAX_PHOTO_BYTES."""
+        client = load_test_client()
+        exhibits = importlib.import_module("app.api.exhibits")
+        meta_fields = {
+            "name": "X", "type": "Komputer", "vendor": "V", "model": "M",
+            "status": "Niesprawdzony", "storage_place": "S",
+        }
+        with mock.patch.object(exhibits, "MAX_PHOTO_BYTES", 4):
+            response = client.post(
+                "/api/v1/exhibits/multipart",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+                data=meta_fields,
+                files={"photos": ("big.jpg", b"ABCDEFGH", "image/jpeg")},  # 8 bytes > 4
+            )
+        self.assertEqual(response.status_code, 413)
+
     def test_get_exhibit_returns_404_when_record_missing(self):
         client = load_test_client()
         exhibits = importlib.import_module("app.api.exhibits")

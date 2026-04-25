@@ -42,7 +42,10 @@ Page {
     Timer {
         id: returnTimer
         interval: 1500
-        onTriggered: stack.pop(null)
+        // Q-05: pop(page) zamiast pop(null) — gdy timer wystrzeli z opóźnieniem
+        // a user już nawigował dalej, pop(null) cofnie do root i wywali jego stronę.
+        // pop(page) cofnie tylko jeśli `page` jest na stosie.
+        onTriggered: stack.pop(page)
     }
 
     // Komponent "wiersz" — Label | Input obok siebie (żeby zmieścić bez scrolla)

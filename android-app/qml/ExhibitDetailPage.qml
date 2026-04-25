@@ -21,9 +21,13 @@ Page {
                 page.loading = false
             }
         }
-        function onExhibitDetailError(msg) {
-            page.errorMsg = msg
-            page.loading = false
+        // Q-05: filtruj error po exhibitId — bez tego error z requestu A
+        // surfacuje na ExhibitDetailPage instancji B (apiClient to singleton).
+        function onExhibitDetailError(msg, errExhibitId) {
+            if (errExhibitId === page.exhibitId) {
+                page.errorMsg = msg
+                page.loading = false
+            }
         }
     }
 
