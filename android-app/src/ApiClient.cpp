@@ -34,6 +34,44 @@ ApiClient::ApiClient(AppSettings *settings, QObject *parent)
             });
 }
 
+QString ApiClient::validatePhotoPath(const QString &photoPath)
+{
+    if (photoPath.isEmpty())
+        return QStringLiteral("Brak ścieżki do zdjęcia");
+
+    QFileInfo info(photoPath);
+    const QString canonical = info.canonicalFilePath();
+    if (canonical.isEmpty())  // canonicalFilePath = "" gdy plik nie istnieje
+        return QStringLiteral("Plik nie istnieje: ") + photoPath;
+    if (!info.isReadable())
+        return QStringLiteral("Brak praw do odczytu: ") + canonical;
+    if (info.isSymLink())
+        return QStringLiteral("Odmowa: symlink (defense-in-depth)");
+
+    const QString suffix = info.suffix().toLower();
+    static const QStringList allowed = {QStringLiteral("jpg"), QStringLiteral("jpeg"),
+                                        QStringLiteral("png"), QStringLiteral("heic"),
+                                        QStringLiteral("heif")};
+    if (!allowed.contains(suffix))
+        return QStringLiteral("Niedozwolone rozszerzenie: ") + suffix;
+
+    // Magic bytes check — pierwszy ~8 bajtów wystarcza
+    QFile probe(canonical);
+    if (!probe.open(QIODevice::ReadOnly))
+        return QStringLiteral("Nie mogę otworzyć: ") + canonical;
+    const QByteArray magic = probe.read(8);
+    probe.close();
+
+    const bool isJpeg = magic.startsWith("\xFF\xD8\xFF");
+    const bool isPng = magic.startsWith("\x89PNG\r\n\x1A\n");
+    // HEIF: brand "ftyp" na offset 4 + heic/mif1/heix; uproszczamy bez deep parsingu
+    const bool isHeif = magic.size() >= 8 && magic.mid(4, 4) == "ftyp";
+    if (!isJpeg && !isPng && !isHeif)
+        return QStringLiteral("Plik nie jest obrazem (bad magic bytes)");
+
+    return QString();   // OK
+}
+
 QString ApiClient::formatNetworkError(QNetworkReply *reply)
 {
     if (!reply) return QStringLiteral("Nieznany błąd");
@@ -157,6 +195,12 @@ void ApiClient::sendMultipartPost(const QString &endpoint,
 void ApiClient::identify(const QString &photoPath)
 {
     qInfo() << "[ApiClient] identify" << photoPath;
+    const QString err = validatePhotoPath(photoPath);
+    if (!err.isEmpty()) {
+        QMetaObject::invokeMethod(this,
+            [this, err]() { emit identifyError(err); }, Qt::QueuedConnection);
+        return;
+    }
     sendMultipartPost(
         QStringLiteral("/api/v1/identify"),
         photoPath,
@@ -178,6 +222,12 @@ void ApiClient::identify(const QString &photoPath)
 void ApiClient::findSimilar(const QString &photoPath, int topK)
 {
     qInfo() << "[ApiClient] findSimilar" << photoPath << "top_k=" << topK;
+    const QString verr = validatePhotoPath(photoPath);
+    if (!verr.isEmpty()) {
+        QMetaObject::invokeMethod(this,
+            [this, verr]() { emit similarError(verr); }, Qt::QueuedConnection);
+        return;
+    }
 
     // sendMultipartPost używa name="images" — dla /similar backend oczekuje name="image".
     // Dlatego robimy osobny POST tutaj, nie reużywamy sendMultipartPost.
@@ -294,6 +344,12 @@ void ApiClient::listExhibits(int page, int perPage)
 void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath)
 {
     qInfo() << "[ApiClient] saveExhibit" << payload.value("name") << "photo:" << photoPath;
+    const QString verr = validatePhotoPath(photoPath);
+    if (!verr.isEmpty()) {
+        QMetaObject::invokeMethod(this,
+            [this, verr]() { emit exhibitError(verr); }, Qt::QueuedConnection);
+        return;
+    }
 
     // C-D02: multipart zamiast base64-in-JSON. Plik jest streamowany przez Qt
     // (QFile setBodyDevice), nie ładowany całością do RAM + 33% base64 overhead.
