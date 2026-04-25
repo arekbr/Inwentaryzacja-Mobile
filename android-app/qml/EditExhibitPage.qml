@@ -86,20 +86,35 @@ Page {
 
     ColumnLayout {
         anchors.fill: parent
+        // Q-15: IME-aware bottom margin — bez tego soft keyboard zakrywa Save button.
+        // Animowane przez Behavior żeby uniknąć skoków przy pojawieniu/zniknięciu klawiatury.
+        anchors.bottomMargin: Qt.inputMethod.visible
+            ? Math.max(0, Qt.inputMethod.keyboardRectangle.height - SafeArea.margins.bottom)
+            : 0
+        Behavior on anchors.bottomMargin { NumberAnimation { duration: 150 } }
         spacing: 8
 
         Item { Layout.preferredHeight: 4 }
 
         // Zdjęcie
         Image {
+            id: photoImage
             Layout.fillWidth: true
             Layout.leftMargin: 16
             Layout.rightMargin: 16
             Layout.preferredHeight: 180
             source: page.photoPath !== "" ? "file://" + page.photoPath : ""
+            // Q-06: cap dekodowania (180dp × 2 retina)
+            sourceSize.height: 360
             fillMode: Image.PreserveAspectFit
             autoTransform: true
             asynchronous: true
+            // Q-10: gdy Android wyrzuci cache między capture a edit
+            onStatusChanged: if (status === Image.Error) {
+                console.warn("[EditExhibitPage] Image.Error:", photoImage.source)
+                statusLabel.text = "✗ Nie mogę wczytać zdjęcia (cache cleanup?)"
+                statusLabel.color = "#ff4136"
+            }
         }
 
         // AI pewność

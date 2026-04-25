@@ -10,7 +10,10 @@ Page {
     property bool identifying: false
 
     Connections {
+        // Q-04: gate na aktywną stronę — CameraIntent jest singletonem,
+        // bez tego dwie strony jednocześnie odbierałyby photoCaptured.
         target: cameraIntent
+        enabled: page.StackView.status === StackView.Active
         function onPhotoCaptured(path) {
             console.log("[QML] photoCaptured:", path)
             page.capturedPath = path
@@ -24,6 +27,7 @@ Page {
 
     Connections {
         target: apiClient
+        enabled: page.StackView.status === StackView.Active
         function onIdentifyResult(artefakt) {
             console.log("[QML] identify OK:", JSON.stringify(artefakt))
             page.identifying = false

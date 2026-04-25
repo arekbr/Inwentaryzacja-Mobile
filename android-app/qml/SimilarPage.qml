@@ -12,7 +12,9 @@ Page {
     property int indexSize: 0
 
     Connections {
+        // Q-04: gate na aktywną stronę — CameraIntent singleton.
         target: cameraIntent
+        enabled: page.StackView.status === StackView.Active
         function onPhotoCaptured(path) {
             page.capturedPath = path
             statusLabel.text = ""
@@ -24,6 +26,7 @@ Page {
 
     Connections {
         target: apiClient
+        enabled: page.StackView.status === StackView.Active
         function onSimilarResult(list, size) {
             page.searching = false
             page.results = list
@@ -46,15 +49,24 @@ Page {
 
         // Foto (kompakt, 120dp żeby zostawić miejsce na 5 wyników)
         Image {
+            id: capturedImage
             Layout.fillWidth: true
             Layout.leftMargin: 16
             Layout.rightMargin: 16
             Layout.preferredHeight: 120
             source: page.capturedPath !== "" ? "file://" + page.capturedPath : ""
+            // Q-06: dekoduj do mniejszej tekstury (120dp wysokości × 2 retina)
+            sourceSize.height: 240
             fillMode: Image.PreserveAspectFit
             autoTransform: true
             asynchronous: true
             cache: false
+            // Q-10: log + UI status gdy plik znika (Android cache eviction)
+            onStatusChanged: if (status === Image.Error) {
+                console.warn("[SimilarPage] Image.Error:", capturedImage.source)
+                statusLabel.text = "✗ Nie mogę wczytać zdjęcia"
+                statusLabel.color = "#ff4136"
+            }
         }
 
         // Button Szukaj (lub "Zrób ponownie" gdy już jest foto)
@@ -143,14 +155,21 @@ Page {
                     spacing: 10
 
                     Image {
+                        id: thumbImage
                         Layout.preferredWidth: 72
                         Layout.preferredHeight: 72
                         source: modelData.thumbnail_b64
                             ? "data:image/jpeg;base64," + modelData.thumbnail_b64
                             : ""
+                        // Q-06: 72dp × 2 retina = 144 px sourceSize
+                        sourceSize.width: 144
+                        sourceSize.height: 144
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         cache: false
+                        onStatusChanged: if (status === Image.Error) {
+                            console.warn("[SimilarPage] thumb error dla", modelData.exhibit_id)
+                        }
                     }
 
                     ColumnLayout {
