@@ -273,38 +273,74 @@ void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath
 {
     qInfo() << "[ApiClient] saveExhibit" << payload.value("name") << "photo:" << photoPath;
 
-    // Wczytaj zdjęcie i zakoduj do base64
-    QFile file(photoPath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        emit exhibitError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath);
+    // C-D02: multipart zamiast base64-in-JSON. Plik jest streamowany przez Qt
+    // (QFile setBodyDevice), nie ładowany całością do RAM + 33% base64 overhead.
+    // Dla 8 MB JPEG: dawniej ~25-30 MB transient heap, teraz ~8 MB raw + chunki.
+    auto *file = new QFile(photoPath);
+    if (!file->open(QIODevice::ReadOnly)) {
+        QMetaObject::invokeMethod(this,
+            [this, photoPath]() { emit exhibitError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
+            Qt::QueuedConnection);
+        delete file;
         return;
     }
-    const QByteArray photoB64 = file.readAll().toBase64();
-    file.close();
 
-    // Zbuduj JSON body
-    QJsonObject body = QJsonObject::fromVariantMap(payload);
-    body["photos_base64"] = QJsonArray{QString::fromLatin1(photoB64)};
+    auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
 
-    const QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits"));
+    // Form fields — wszystkie oprócz photos
+    for (auto it = payload.constBegin(); it != payload.constEnd(); ++it) {
+        const QString key = it.key();
+        const QVariant val = it.value();
+        if (val.isNull() || !val.isValid())
+            continue;
+
+        QHttpPart part;
+        part.setHeader(QNetworkRequest::ContentDispositionHeader,
+                       QVariant(QStringLiteral("form-data; name=\"%1\"").arg(key)));
+        // FastAPI Form() akceptuje boolean jako "true"/"false", liczby jako string
+        QString text;
+        if (val.typeId() == QMetaType::Bool) {
+            text = val.toBool() ? QStringLiteral("true") : QStringLiteral("false");
+        } else {
+            text = val.toString();
+        }
+        part.setBody(text.toUtf8());
+        multi->append(part);
+    }
+
+    // Photo
+    QHttpPart photoPart;
+    const QString filename = QFileInfo(photoPath).fileName();
+    photoPart.setHeader(QNetworkRequest::ContentDispositionHeader,
+        QVariant(QStringLiteral("form-data; name=\"photos\"; filename=\"%1\"").arg(filename)));
+    photoPart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("image/jpeg"));
+    photoPart.setBodyDevice(file);
+    file->setParent(multi);
+    multi->append(photoPart);
+
+    const QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits/multipart"));
     QNetworkRequest req(url);
-    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    req.setTransferTimeout(30000);  // base64 photo upload + DB write
+    req.setTransferTimeout(30000);
     if (!m_settings->apiToken().isEmpty()) {
         req.setRawHeader("Authorization",
                          ("Bearer " + m_settings->apiToken()).toUtf8());
     }
 
-    QNetworkReply *reply = m_nam->post(req, QJsonDocument(body).toJson());
+    QNetworkReply *reply = m_nam->post(req, multi);
+    multi->setParent(reply);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError) {
             emit exhibitError(formatNetworkError(reply));
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-            const QJsonObject obj = doc.object();
-            emit exhibitSaved(obj.value("id").toString(),
-                              obj.value("photos_count").toInt());
+            if (!doc.isObject()) {
+                emit exhibitError(QStringLiteral("Zła odpowiedź serwera"));
+            } else {
+                const QJsonObject obj = doc.object();
+                emit exhibitSaved(obj.value("id").toString(),
+                                  obj.value("photos_count").toInt());
+            }
         }
         reply->deleteLater();
     });
