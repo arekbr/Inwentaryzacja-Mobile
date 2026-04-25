@@ -12,7 +12,7 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 
 from app.auth import require_token
 from app.db import db_cursor, lookup_or_insert
@@ -25,6 +25,7 @@ from app.schemas import (
     ExhibitListItem,
     ExhibitListResponse,
 )
+from app.schemas import Status as StatusEnum, Typ as TypEnum
 
 MAX_PHOTO_BYTES = 8 * 1024 * 1024   # per photo, po base64 decode
 
@@ -110,6 +111,80 @@ def create_exhibit(request: Request, payload: ExhibitCreate) -> ExhibitCreateRes
             )
 
     return ExhibitCreateResponse(id=eksponat_id, photos_count=len(processed_photos))
+
+
+def _persist_exhibit(meta: ExhibitCreate, photo_blobs: list[bytes]) -> ExhibitCreateResponse:
+    """Wspólna ścieżka zapisu — używana przez JSON i multipart endpointy."""
+    eksponat_id = str(uuid.uuid4())
+    with db_cursor() as cur:
+        type_id = lookup_or_insert(cur, "types", meta.type)
+        vendor_id = lookup_or_insert(cur, "vendors", meta.vendor)
+        model_id = lookup_or_insert(cur, "models", meta.model, {"vendor_id": vendor_id})
+        status_id = lookup_or_insert(cur, "statuses", meta.status)
+        storage_id = lookup_or_insert(cur, "storage_places", meta.storage_place)
+
+        cur.execute(
+            _INSERT_EKSPONAT,
+            (
+                eksponat_id, meta.name, type_id, vendor_id, model_id,
+                meta.serial_number, meta.part_number, meta.revision, meta.production_year,
+                status_id, storage_id, meta.description, meta.value,
+                1 if meta.has_original_packaging else 0,
+            ),
+        )
+        for blob in photo_blobs:
+            cur.execute(_INSERT_PHOTO, (str(uuid.uuid4()), eksponat_id, blob))
+
+    return ExhibitCreateResponse(id=eksponat_id, photos_count=len(photo_blobs))
+
+
+@router.post("/exhibits/multipart", response_model=ExhibitCreateResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
+async def create_exhibit_multipart(
+    request: Request,
+    name: str = Form(...),
+    type: TypEnum = Form(...),
+    vendor: str = Form(...),
+    model: str = Form(...),
+    status_field: StatusEnum = Form(..., alias="status"),
+    storage_place: str = Form(...),
+    serial_number: str | None = Form(default=None),
+    part_number: str | None = Form(default=None),
+    revision: str | None = Form(default=None),
+    production_year: int | None = Form(default=None, ge=1900, le=2100),
+    description: str | None = Form(default=None),
+    value: int | None = Form(default=None, ge=0),
+    has_original_packaging: bool = Form(default=False),
+    photos: list[UploadFile] = File(default_factory=list),
+) -> ExhibitCreateResponse:
+    """C-D02: multipart wariant — Android wysyła plik streamem zamiast base64-in-JSON
+    (oszczędza ~25-30 MB transient RAM przy 8 MB JPEG na low-end Androidzie)."""
+    processed: list[bytes] = []
+    for i, upload in enumerate(photos):
+        raw = await upload.read()
+        if len(raw) > MAX_PHOTO_BYTES:
+            raise HTTPException(
+                status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Zdjęcie #{i} przekracza {MAX_PHOTO_BYTES // 1024 // 1024} MB",
+            )
+        validate_image_bytes(raw, label=f"zdjęcie #{i}")
+        try:
+            processed.append(preprocess_for_storage(raw))
+        except Exception as e:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Zdjęcie #{i}: błąd przetwarzania",
+            ) from e
+
+    meta = ExhibitCreate(
+        name=name, type=type, vendor=vendor, model=model,
+        status=status_field, storage_place=storage_place,
+        serial_number=serial_number, part_number=part_number, revision=revision,
+        production_year=production_year, description=description, value=value,
+        has_original_packaging=has_original_packaging,
+        photos_base64=[],  # multipart route — base64 nie używane
+    )
+    return _persist_exhibit(meta, processed)
 
 
 _SELECT_LIST = """
