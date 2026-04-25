@@ -12,7 +12,9 @@ Page {
     property int indexSize: 0
 
     Connections {
+        // Q-04: gate na aktywną stronę — CameraIntent singleton.
         target: cameraIntent
+        enabled: page.StackView.status === StackView.Active
         function onPhotoCaptured(path) {
             page.capturedPath = path
             statusLabel.text = ""
@@ -24,6 +26,7 @@ Page {
 
     Connections {
         target: apiClient
+        enabled: page.StackView.status === StackView.Active
         function onSimilarResult(list, size) {
             page.searching = false
             page.results = list

@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -18,6 +20,7 @@ Page {
 
     Connections {
         target: apiClient
+        enabled: page.StackView.status === StackView.Active
         function onExhibitListResult(info) {
             page.loading = false
             page.errorMsg = ""
@@ -25,16 +28,20 @@ Page {
             page.currentPage = info.page
             page.hasMore = info.has_more
 
-            const results = info.results || []
-            for (let i = 0; i < results.length; ++i) {
-                const r = results[i]
-                itemsModel.append({
+            // Q-01: rola "device_model" zamiast "model" — unikamy kolizji z
+            // delegate context keyword "model".
+            // Q-D02 perf: batch append jako tablica (1 modelChanged signal vs 50).
+            const mapped = (info.results || []).map(function (r) {
+                return {
                     exhibit_id: r.id,
                     name: r.name || "(bez nazwy)",
                     vendor: r.vendor || "",
-                    model: r.model || "",
+                    device_model: r.model || "",
                     thumbnail_b64: r.thumbnail_b64 || ""
-                })
+                }
+            })
+            if (mapped.length > 0) {
+                itemsModel.append(mapped)
             }
         }
         function onExhibitListError(msg) {
@@ -123,18 +130,39 @@ Page {
             clip: true
             spacing: 0
             model: itemsModel
+            // Q-08: recycling delegate'ów — bez tego każdy scroll = rebuild Rectangle+RowLayout+Image+...
+            reuseItems: true
 
-            // Infinite scroll: gdy user dotrze do dolnej krawędzi, dociągamy następną stronę.
-            onContentYChanged: {
+            // Q-09: onAtYEndChanged zamiast per-pixel onContentYChanged
+            // (firs tylko przy zmianie boolean, nie 60-120×/s podczas flicka).
+            onAtYEndChanged: {
                 if (atYEnd && !page.loading && page.hasMore) {
                     page.loadNextPage()
                 }
             }
 
             delegate: Rectangle {
+                id: row
+                // Q-01 + Q-13: required properties zamiast implicit context — pozwala
+                // na pragma ComponentBehavior: Bound i typed access.
+                required property int index
+                required property string exhibit_id
+                required property string name
+                required property string vendor
+                required property string device_model
+                required property string thumbnail_b64
+
                 width: listView.width
                 height: 80
-                color: tap.pressed ? "#1a2a3a" : (index % 2 === 0 ? "#181818" : "#101010")
+                color: tap.pressed ? "#1a2a3a" : (row.index % 2 === 0 ? "#181818" : "#101010")
+
+                // Q-08 cleanup: gdy delegate trafia do pool, anuluj load żeby zwolnić texture.
+                ListView.onPooled: thumbImage.source = ""
+                ListView.onReused: {
+                    if (row.thumbnail_b64 !== "") {
+                        thumbImage.source = "data:image/jpeg;base64," + row.thumbnail_b64
+                    }
+                }
 
                 RowLayout {
                     anchors.fill: parent
@@ -149,14 +177,23 @@ Page {
                         radius: 4
 
                         Image {
+                            id: thumbImage
                             anchors.fill: parent
                             anchors.margins: 1
-                            source: thumbnail_b64 !== ""
-                                ? "data:image/jpeg;base64," + thumbnail_b64
+                            source: row.thumbnail_b64 !== ""
+                                ? "data:image/jpeg;base64," + row.thumbnail_b64
                                 : ""
+                            // Q-06: dekoduj tylko do rozmiaru widocznego (~64dp × 2 retina)
+                            // — bez tego cały JPEG idzie do RAM i GPU jako pełna textura.
+                            sourceSize.width: 128
+                            sourceSize.height: 128
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                             cache: false
+                            // Q-10: nie krzycz, ale loguj — placeholder Rectangle pod spodem zostanie widoczny.
+                            onStatusChanged: if (status === Image.Error) {
+                                console.warn("[ExhibitListPage] Image.Error dla", row.exhibit_id)
+                            }
                         }
                     }
 
@@ -165,7 +202,7 @@ Page {
                         spacing: 2
 
                         Label {
-                            text: name
+                            text: row.name
                             color: "white"
                             font.pixelSize: 14
                             font.bold: true
@@ -174,11 +211,9 @@ Page {
                         }
                         Label {
                             text: {
-                                const v = vendor
-                                const mo = model.model || ""  // role "model" via context
-                                if (v && mo) return v + " · " + mo
-                                if (v) return v
-                                if (mo) return mo
+                                if (row.vendor && row.device_model) return row.vendor + " · " + row.device_model
+                                if (row.vendor) return row.vendor
+                                if (row.device_model) return row.device_model
                                 return "—"
                             }
                             color: "#aaa"
@@ -201,12 +236,12 @@ Page {
                     anchors.fill: parent
                     onClicked: {
                         stack.push("ExhibitDetailPage.qml", {
-                            exhibitId: exhibit_id,
+                            exhibitId: row.exhibit_id,
                             initialData: {
-                                name: name,
-                                vendor: vendor,
-                                model: model.model || "",
-                                thumbnail_b64: thumbnail_b64
+                                name: row.name,
+                                vendor: row.vendor,
+                                model: row.device_model,
+                                thumbnail_b64: row.thumbnail_b64
                             }
                         })
                     }
