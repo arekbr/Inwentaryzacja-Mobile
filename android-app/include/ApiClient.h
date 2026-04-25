@@ -57,7 +57,9 @@ signals:
     void similarError(const QString &message);
 
     void exhibitDetail(const QVariantMap &detail);
-    void exhibitDetailError(const QString &message);
+    /// Q-05: drugi arg `exhibitId` żeby strona mogła filtrować — bez tego
+    /// error z requestu A surfacuje na stronie B (cross-page leak).
+    void exhibitDetailError(const QString &message, const QString &exhibitId);
 
     /// @param page page number (1-based) — przydatne przy infinite scrollu
     /// @param info {results, total, page, per_page, has_more}

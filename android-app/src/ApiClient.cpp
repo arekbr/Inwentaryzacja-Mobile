@@ -222,13 +222,13 @@ void ApiClient::getExhibit(const QString &exhibitId)
     }
 
     QNetworkReply *reply = m_nam->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, exhibitId]() {
         if (reply->error() != QNetworkReply::NoError) {
-            emit exhibitDetailError(formatNetworkError(reply));
+            emit exhibitDetailError(formatNetworkError(reply), exhibitId);
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
             if (!doc.isObject()) {
-                emit exhibitDetailError(QStringLiteral("Zła odpowiedź"));
+                emit exhibitDetailError(QStringLiteral("Zła odpowiedź"), exhibitId);
             } else {
                 emit exhibitDetail(doc.object().toVariantMap());
             }
