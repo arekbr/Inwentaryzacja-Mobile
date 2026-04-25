@@ -205,6 +205,14 @@ ApplicationWindow {
                     onClicked: stack.push("SimilarPage.qml")
                 }
 
+                Button {
+                    text: "Przeglądaj bazę"
+                    Layout.fillWidth: true
+                    enabled: !welcomeRoot.backendError
+                    opacity: welcomeRoot.backendError ? 0.5 : 1.0
+                    onClicked: stack.push("ExhibitListPage.qml")
+                }
+
                 Item { Layout.fillHeight: true }
 
                 Label {

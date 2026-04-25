@@ -37,6 +37,9 @@ public:
     /// GET /api/v1/exhibits/{id} — pełny eksponat + pierwsze zdjęcie 800px base64.
     Q_INVOKABLE void getExhibit(const QString &exhibitId);
 
+    /// GET /api/v1/exhibits?page=N&per_page=M — paginowana lista alfabetycznie.
+    Q_INVOKABLE void listExhibits(int page = 1, int perPage = 50);
+
 signals:
     /// @param info map: {version, database, exhibits_count, clip_index_size, mock_identify, status}
     void healthOk(const QVariantMap &info);
@@ -55,6 +58,11 @@ signals:
 
     void exhibitDetail(const QVariantMap &detail);
     void exhibitDetailError(const QString &message);
+
+    /// @param page page number (1-based) — przydatne przy infinite scrollu
+    /// @param info {results, total, page, per_page, has_more}
+    void exhibitListResult(const QVariantMap &info);
+    void exhibitListError(const QString &message);
 
 private:
     void sendMultipartPost(const QString &endpoint,

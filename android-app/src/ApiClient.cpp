@@ -237,6 +237,38 @@ void ApiClient::getExhibit(const QString &exhibitId)
     });
 }
 
+void ApiClient::listExhibits(int page, int perPage)
+{
+    qInfo() << "[ApiClient] listExhibits page=" << page << "per_page=" << perPage;
+    QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits"));
+    QUrlQuery q;
+    q.addQueryItem("page", QString::number(page));
+    q.addQueryItem("per_page", QString::number(perPage));
+    url.setQuery(q);
+
+    QNetworkRequest req(url);
+    req.setTransferTimeout(15000);  // miniatury per page mogą zająć chwilę przy 50× JPEG
+    if (!m_settings->apiToken().isEmpty()) {
+        req.setRawHeader("Authorization",
+                         ("Bearer " + m_settings->apiToken()).toUtf8());
+    }
+
+    QNetworkReply *reply = m_nam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (reply->error() != QNetworkReply::NoError) {
+            emit exhibitListError(formatNetworkError(reply));
+        } else {
+            const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+            if (!doc.isObject()) {
+                emit exhibitListError(QStringLiteral("Zła odpowiedź"));
+            } else {
+                emit exhibitListResult(doc.object().toVariantMap());
+            }
+        }
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath)
 {
     qInfo() << "[ApiClient] saveExhibit" << payload.value("name") << "photo:" << photoPath;

@@ -1,3 +1,4 @@
+import base64
 import importlib
 import io
 import os
@@ -595,6 +596,155 @@ class SecuritySmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 502)
         self.assertEqual(response.json()["detail"], "Claude API niedostępne")
         self.assertNotIn("payload details", response.text)
+
+
+    def test_list_exhibits_returns_empty_payload_when_table_is_empty(self):
+        client = load_test_client()
+        exhibits = importlib.import_module("app.api.exhibits")
+
+        class FakeCursor:
+            def __init__(self):
+                self._next = "count"
+
+            def execute(self, sql, params=None):
+                if "COUNT(*)" in sql:
+                    self._next = "count"
+                else:
+                    self._next = "rows"
+
+            def fetchone(self):
+                return {"c": 0}
+
+            def fetchall(self):
+                return []
+
+        @contextmanager
+        def fake_db_cursor():
+            yield FakeCursor()
+
+        with mock.patch.object(exhibits, "db_cursor", fake_db_cursor):
+            response = client.get(
+                "/api/v1/exhibits",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "results": [],
+                "total": 0,
+                "page": 1,
+                "per_page": 50,
+                "has_more": False,
+            },
+        )
+
+    def test_list_exhibits_returns_items_with_thumbnails(self):
+        client = load_test_client()
+        exhibits = importlib.import_module("app.api.exhibits")
+
+        list_rows = [
+            {"id": "id-1", "name": "Atari 800XL", "vendor": "Atari", "model": "800XL"},
+            {"id": "id-2", "name": "Commodore 64", "vendor": "Commodore", "model": "C64"},
+        ]
+        photo_rows = [
+            {"eksponat_id": "id-1", "photo": b"raw-1"},
+            {"eksponat_id": "id-2", "photo": b"raw-2"},
+        ]
+
+        class FakeCursor:
+            def __init__(self):
+                self.calls = 0
+
+            def execute(self, sql, params=None):
+                self.calls += 1
+                self._mode = (
+                    "count" if "COUNT(*)" in sql
+                    else "list" if "ORDER BY" in sql
+                    else "thumbs"
+                )
+
+            def fetchone(self):
+                return {"c": 2}
+
+            def fetchall(self):
+                return list_rows if self._mode == "list" else photo_rows
+
+        @contextmanager
+        def fake_db_cursor():
+            yield FakeCursor()
+
+        with (
+            mock.patch.object(exhibits, "db_cursor", fake_db_cursor),
+            mock.patch.object(exhibits, "make_thumbnail", side_effect=lambda raw: b"thumb-" + raw),
+        ):
+            response = client.get(
+                "/api/v1/exhibits?page=1&per_page=50",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 2)
+        self.assertEqual(body["page"], 1)
+        self.assertEqual(body["per_page"], 50)
+        self.assertFalse(body["has_more"])
+        self.assertEqual(len(body["results"]), 2)
+        self.assertEqual(body["results"][0]["name"], "Atari 800XL")
+        self.assertEqual(body["results"][0]["vendor"], "Atari")
+        self.assertEqual(
+            body["results"][0]["thumbnail_b64"],
+            base64.standard_b64encode(b"thumb-raw-1").decode("ascii"),
+        )
+
+    def test_list_exhibits_reports_has_more_when_more_pages_exist(self):
+        client = load_test_client()
+        exhibits = importlib.import_module("app.api.exhibits")
+
+        class FakeCursor:
+            def execute(self, sql, params=None):
+                self._mode = (
+                    "count" if "COUNT(*)" in sql
+                    else "list" if "ORDER BY" in sql
+                    else "thumbs"
+                )
+
+            def fetchone(self):
+                return {"c": 150}
+
+            def fetchall(self):
+                if self._mode == "list":
+                    return [{"id": f"id-{i}", "name": f"Item {i}", "vendor": None, "model": None} for i in range(50)]
+                return []
+
+        @contextmanager
+        def fake_db_cursor():
+            yield FakeCursor()
+
+        with mock.patch.object(exhibits, "db_cursor", fake_db_cursor):
+            response = client.get(
+                "/api/v1/exhibits?page=2&per_page=50",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 150)
+        self.assertEqual(body["page"], 2)
+        self.assertTrue(body["has_more"])
+        self.assertEqual(len(body["results"]), 50)
+        self.assertIsNone(body["results"][0]["thumbnail_b64"])  # brak photos = None
+
+    def test_list_exhibits_rejects_invalid_pagination(self):
+        client = load_test_client()
+
+        for bad in ("page=0", "per_page=0", "per_page=101"):
+            response = client.get(
+                f"/api/v1/exhibits?{bad}",
+                headers={"Authorization": f"Bearer {TEST_API_TOKEN}"},
+            )
+            self.assertEqual(response.status_code, 400, msg=bad)
 
 
 if __name__ == "__main__":

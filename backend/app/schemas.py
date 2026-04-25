@@ -129,6 +129,26 @@ class ExhibitDetail(BaseModel):
     photos_count: int = 0
 
 
+class ExhibitListItem(BaseModel):
+    """Wiersz listy do przeglądu bazy w apce mobilnej."""
+    id: str
+    name: str
+    vendor: str | None = None
+    model: str | None = None
+    thumbnail_b64: str | None = Field(
+        default=None,
+        description="Miniatura JPEG ~400px base64 (inline, brak gdy eksponat nie ma zdjęcia)",
+    )
+
+
+class ExhibitListResponse(BaseModel):
+    results: list[ExhibitListItem]
+    total: int
+    page: int
+    per_page: int
+    has_more: bool
+
+
 class SimilarResult(BaseModel):
     exhibit_id: str
     name: str
