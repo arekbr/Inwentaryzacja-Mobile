@@ -87,7 +87,12 @@ void ApiClient::checkHealth()
             emit healthError(formatNetworkError(reply));
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-            emit healthOk(doc.object().toVariantMap());
+            // L-04: walidacja — bez tego malformed JSON da puste {}.
+            if (doc.isNull() || !doc.isObject()) {
+                emit healthError(QStringLiteral("Niepoprawna odpowiedź serwera (JSON)"));
+            } else {
+                emit healthOk(doc.object().toVariantMap());
+            }
         }
         reply->deleteLater();
     });
@@ -202,9 +207,14 @@ void ApiClient::findSimilar(const QString &photoPath, int topK)
             emit similarError(formatNetworkError(reply));
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-            const QJsonObject obj = doc.object();
-            const QVariantList list = obj.value("results").toArray().toVariantList();
-            emit similarResult(list, obj.value("index_size").toInt());
+            // L-04: walidacja — bez tego malformed response by zwrócił pustą listę.
+            if (doc.isNull() || !doc.isObject()) {
+                emit similarError(QStringLiteral("Niepoprawna odpowiedź serwera (JSON)"));
+            } else {
+                const QJsonObject obj = doc.object();
+                const QVariantList list = obj.value("results").toArray().toVariantList();
+                emit similarResult(list, obj.value("index_size").toInt());
+            }
         }
         reply->deleteLater();
     });
