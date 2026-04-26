@@ -36,6 +36,11 @@ signals:
 
 private:
     QSettings m_settings;
+    /// C-D08: apiUrl() jest wywoływany w prepareRequest na każde żądanie HTTP
+    /// (5+ razy w typowym flow zdjęcia). QSettings na Androidzie = SharedPreferences
+    /// = JNI call + I/O — cache w pamięci eliminuje powtarzalny koszt.
+    /// Invalidate w setApiUrl po setValue.
+    mutable QString m_apiUrlCache;
 #ifdef Q_OS_ANDROID
     QString m_apiToken;
 #endif

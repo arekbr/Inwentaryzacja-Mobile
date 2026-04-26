@@ -11,12 +11,14 @@ AppSettings::AppSettings(QObject *parent)
     // na urządzeniu i nie był objęty systemowym backup/restore.
     m_apiToken = QString();
 #endif
+    // C-D08: warm cache — read raz na start, nie per-call.
+    m_apiUrlCache = m_settings.value(QStringLiteral("apiUrl"),
+                                     QStringLiteral("http://192.168.1.100:8000")).toString();
 }
 
 QString AppSettings::apiUrl() const
 {
-    return m_settings.value(QStringLiteral("apiUrl"),
-                            QStringLiteral("http://192.168.1.100:8000")).toString();
+    return m_apiUrlCache;
 }
 
 bool AppSettings::isValidApiUrl(const QString &url)
@@ -47,6 +49,7 @@ void AppSettings::setApiUrl(const QString &url)
     if (trimmed == apiUrl())
         return;
     m_settings.setValue(QStringLiteral("apiUrl"), trimmed);
+    m_apiUrlCache = trimmed;  // C-D08: invalidate cache po setValue
     emit apiUrlChanged();
 }
 
