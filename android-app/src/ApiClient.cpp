@@ -76,19 +76,32 @@ QString ApiClient::formatNetworkError(QNetworkReply *reply)
 {
     if (!reply) return QStringLiteral("Nieznany błąd");
 
-    // Najpierw FastAPI `detail` z body — najbardziej konkretny komunikat.
-    const QByteArray body = reply->readAll();
-    if (!body.isEmpty()) {
-        const QJsonDocument doc = QJsonDocument::fromJson(body);
-        if (doc.isObject() && doc.object().contains("detail")) {
-            const QJsonValue det = doc.object().value("detail");
+    const auto err = reply->error();
+    const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString rawErrString = reply->errorString();
+    const QString urlStr = reply->url().toString();
+
+    // C-D04: peek body zamiast readAll() — funkcja ma być side-effect-free.
+    // Caller może potem reply->readAll() dla diagnostyki bez ścierania bufora.
+    // Cap 4096 — szukamy tylko FastAPI `detail`, nie potrzeba całego body.
+    const QByteArray bodyPeek = reply->peek(4096);
+
+    // C-D06: zawsze loguj triple (enum, HTTP, errorString, URL) niezależnie od ścieżki —
+    // user widzi czysty komunikat, developer ma pełny kontekst w logcat.
+    qWarning().nospace() << "[ApiClient] Net error: enum=" << err
+                         << " http=" << httpStatus
+                         << " errStr=\"" << rawErrString
+                         << "\" url=" << urlStr;
+
+    // FastAPI `detail` z body — najbardziej konkretny komunikat (jeśli serwer odpowiedział).
+    if (!bodyPeek.isEmpty()) {
+        const QJsonDocument doc = QJsonDocument::fromJson(bodyPeek);
+        if (doc.isObject() && doc.object().contains(QStringLiteral("detail"))) {
+            const QJsonValue det = doc.object().value(QStringLiteral("detail"));
             if (det.isString()) return det.toString();
             return QString::fromUtf8(QJsonDocument(det.toArray()).toJson(QJsonDocument::Compact));
         }
     }
-
-    const auto err = reply->error();
-    const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
     switch (err) {
     case QNetworkReply::NoError:
@@ -114,9 +127,15 @@ QString ApiClient::formatNetworkError(QNetworkReply *reply)
     case QNetworkReply::ContentNotFoundError:
         return QStringLiteral("Nie znaleziono zasobu (404)");
     default:
-        if (httpStatus >= 500) return QStringLiteral("Błąd serwera (HTTP %1)").arg(httpStatus);
-        if (httpStatus > 0)   return QStringLiteral("HTTP %1: %2").arg(httpStatus).arg(reply->errorString());
-        return QStringLiteral("Nie można połączyć się z serwerem — sprawdź adres i sieć");
+        // C-D06: default branch zawsze include errorString + numeric code w user message,
+        // żeby field debugging na Androidzie nie był zgadywanką.
+        if (httpStatus >= 500) {
+            return QStringLiteral("Błąd serwera (HTTP %1): %2").arg(httpStatus).arg(rawErrString);
+        }
+        if (httpStatus > 0) {
+            return QStringLiteral("HTTP %1: %2").arg(httpStatus).arg(rawErrString);
+        }
+        return QStringLiteral("Sieć: %1 (kod %2)").arg(rawErrString).arg(int(err));
     }
 }
 
