@@ -49,7 +49,7 @@ Plus: gdy widzę coś znajomego ale nie pewnego — "znajdź podobne" → galeri
 - UX prompt 401 + auto-nav do Settings (token API expired)
 
 🔜 **Plan:**
-- Deploy backendu na hosting publiczny (do tej pory tylko mak Studio + carbon Linux dev)
+- Deploy backendu na hosting publiczny (do tej pory tylko dev lokalny: macOS + Linux)
 - AAB + Google Play Internal Testing (5 testerów)
 - "Dopisz opis AI" — port flow z desktopowej v1.5 (Anthropic enrichment) na mobilkę
 
@@ -69,7 +69,7 @@ Plus: gdy widzę coś znajomego ale nie pewnego — "znajdź podobne" → galeri
 
 ## Build (CLI, bez Qt Creator)
 
-**Carbon (Linux dev):**
+**Linux:**
 ```bash
 export ANDROID_HOME=~/Android/Sdk ANDROID_SDK_ROOT=~/Android/Sdk
 export ANDROID_NDK_ROOT=~/Android/Sdk/ndk/27.2.12479018
@@ -86,7 +86,7 @@ cmake --build build-android-arm64 -j 4
   -c android.intent.category.LAUNCHER 1
 ```
 
-Czas builda: ~1m30s, APK: ~75 MB. Dla mac-a (Apple Silicon) analogicznie z Qt macos build.
+Czas builda: ~1m30s, APK: ~75 MB. Na macOS (Apple Silicon) analogicznie z odpowiednim Qt build.
 
 ## Backend (lokalnie do dev)
 
@@ -118,7 +118,7 @@ adb install -r ... && adb shell am start ... && adb logcat -d | grep -E "ApiClie
 ## Konwencje
 
 - **Workflow git:** `feature/* → dev → main`. Nigdy bezpośrednio do main.
-- **Multi-device sync:** carbon + mak + debianJD. PRZED pracą `git fetch origin --prune` + sanity check `git ls-remote` vs `git log origin/X`.
+- **Multi-device sync:** dev na kilku komputerach. PRZED pracą `git fetch origin --prune` + sanity check `git ls-remote` vs `git log origin/X`.
 - **Język:** kod + nazwy techniczne po angielsku, komentarze + UI + dokumentacja po polsku. Bez korpobełkotu w UI ("don't ask again" → "nie pytaj ponownie").
 - **AI generation:** kod tworzony z pomocą Claude / ChatGPT / GROK — credit zachowany.
 
