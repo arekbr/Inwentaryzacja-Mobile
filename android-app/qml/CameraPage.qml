@@ -9,6 +9,7 @@ Page {
 
     property bool identifying: false
     property string currentIdentifyRid: ""  // Q-05
+    property string statusText: ""  // Q-11
 
     Connections {
         // Q-04: gate na aktywną stronę — CameraIntent jest singletonem,
@@ -18,11 +19,11 @@ Page {
         function onPhotoCaptured(path) {
             console.log("[QML] photoCaptured:", path)
             page.capturedPath = path
-            statusLabel.text = ""
+            page.statusText = ""
         }
         function onPhotoError(msg) {
             console.log("[QML] photoError:", msg)
-            statusLabel.text = msg
+            page.statusText = msg
         }
     }
 
@@ -33,7 +34,7 @@ Page {
             if (requestId !== page.currentIdentifyRid) return  // Q-05
             console.log("[QML] identify OK:", JSON.stringify(artefakt))
             page.identifying = false
-            statusLabel.text = ""
+            page.statusText = ""
             stack.push("EditExhibitPage.qml", {
                 artefakt: artefakt,
                 photoPath: page.capturedPath
@@ -43,7 +44,7 @@ Page {
             if (requestId !== page.currentIdentifyRid) return  // Q-05
             console.log("[QML] identify ERR:", msg)
             page.identifying = false
-            statusLabel.text = "Identyfikacja: " + msg
+            page.statusText = "Identyfikacja: " + msg
         }
     }
 
@@ -88,7 +89,7 @@ Page {
                 onStatusChanged: {
                     console.log("[QML] previewImg status:", status, "src:", source)
                     if (status === Image.Error) {
-                        statusLabel.text = "Nie mogę wczytać zdjęcia: " + source
+                        page.statusText = "Nie mogę wczytać zdjęcia: " + source
                     }
                 }
             }
@@ -103,11 +104,12 @@ Page {
                 height: statusLabel.implicitHeight + 16
                 color: "#A0000000"
                 radius: 8
-                visible: statusLabel.text.length > 0
+                visible: page.statusText.length > 0
                 Label {
                     id: statusLabel
                     anchors.centerIn: parent
                     width: parent.width - 24
+                    text: page.statusText  // Q-11
                     color: "white"
                     font.pixelSize: 13
                     horizontalAlignment: Text.AlignHCenter
@@ -125,7 +127,7 @@ Page {
                 text: page.capturedPath === "" ? "Zrób zdjęcie" : "Zrób ponownie"
                 Layout.fillWidth: true
                 onClicked: {
-                    statusLabel.text = ""
+                    page.statusText = ""
                     page.capturedPath = ""
                     cameraIntent.launch()
                 }
@@ -138,7 +140,7 @@ Page {
                 onClicked: {
                     if (page.capturedPath === "" || page.identifying) return
                     page.identifying = true
-                    statusLabel.text = "Wysyłam do AI…"
+                    page.statusText = "Wysyłam do AI…"
                     page.currentIdentifyRid = apiClient.identify(page.capturedPath)  // Q-05
                 }
                 contentItem: RowLayout {

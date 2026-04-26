@@ -8,20 +8,25 @@ Page {
     property bool checking: false
     property string currentHealthRid: ""  // Q-05
 
+    // Q-11: declarative statusText/statusColor zamiast imperatywnego
+    // statusLabel.text=. Wszystkie write idą tu, Label robi binding.
+    property string statusText: ""
+    property color statusColor: "white"
+
     Connections {
         target: apiClient
         function onHealthOk(requestId, info) {
             if (requestId !== page.currentHealthRid) return  // Q-05
             page.checking = false
-            statusLabel.text = "✓ API " + info.version + " • baza: " + info.database
+            page.statusText = "✓ API " + info.version + " • baza: " + info.database
                 + " (" + info.exhibits_count + " eksp.)"
-            statusLabel.color = "#2ecc40"
+            page.statusColor = "#2ecc40"
         }
         function onHealthError(requestId, msg) {
             if (requestId !== page.currentHealthRid) return  // Q-05
             page.checking = false
-            statusLabel.text = "✗ " + msg
-            statusLabel.color = "#ff4136"
+            page.statusText = "✗ " + msg
+            page.statusColor = "#ff4136"
         }
     }
 
@@ -138,8 +143,8 @@ Page {
                     appSettings.apiUrl = urlInput.text
                     appSettings.apiToken = tokenInput.text
                     page.checking = true
-                    statusLabel.text = "Sprawdzam…"
-                    statusLabel.color = "white"
+                    page.statusText = "Sprawdzam…"
+                    page.statusColor = "white"
                     page.currentHealthRid = apiClient.checkHealth()  // Q-05
                 }
                 contentItem: RowLayout {
@@ -159,11 +164,11 @@ Page {
             }
 
             Label {
-                id: statusLabel
                 Layout.fillWidth: true
                 Layout.leftMargin: 24
                 Layout.rightMargin: 24
-                color: "white"
+                text: page.statusText  // Q-11
+                color: page.statusColor
                 wrapMode: Text.WordWrap
                 font.pixelSize: 14
             }
