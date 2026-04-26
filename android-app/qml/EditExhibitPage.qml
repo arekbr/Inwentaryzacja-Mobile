@@ -11,6 +11,8 @@ Page {
     property string photoPath: ""
     property bool saving: false
     property string currentSaveRid: ""  // Q-05
+    property string statusText: ""  // Q-11
+    property color statusColor: "white"
 
     property string fName: artefakt.name || ""
     property string fType: artefakt.type || "Inne"
@@ -30,15 +32,15 @@ Page {
         function onExhibitSaved(requestId, id, photosCount) {
             if (requestId !== page.currentSaveRid) return  // Q-05
             page.saving = false
-            statusLabel.text = "✓ Zapisano (id: " + id.substr(0, 8) + "…)"
-            statusLabel.color = "#2ecc40"
+            page.statusText = "✓ Zapisano (id: " + id.substr(0, 8) + "…)"
+            page.statusColor = "#2ecc40"
             returnTimer.start()
         }
         function onExhibitError(requestId, msg) {
             if (requestId !== page.currentSaveRid) return  // Q-05
             page.saving = false
-            statusLabel.text = "✗ " + msg
-            statusLabel.color = "#ff4136"
+            page.statusText = "✗ " + msg
+            page.statusColor = "#ff4136"
         }
     }
 
@@ -124,8 +126,8 @@ Page {
             // Q-10: gdy Android wyrzuci cache między capture a edit
             onStatusChanged: if (status === Image.Error) {
                 console.warn("[EditExhibitPage] Image.Error:", photoImage.source)
-                statusLabel.text = "✗ Nie mogę wczytać zdjęcia (cache cleanup?)"
-                statusLabel.color = "#ff4136"
+                page.statusText = "✗ Nie mogę wczytać zdjęcia (cache cleanup?)"
+                page.statusColor = "#ff4136"
             }
         }
 
@@ -212,13 +214,13 @@ Page {
                 enabled: !page.saving
                 onClicked: {
                     if (!page.fName || !page.fVendor || !page.fModel) {
-                        statusLabel.text = "Wymagane: nazwa, producent, model"
-                        statusLabel.color = "#ff4136"
+                        page.statusText = "Wymagane: nazwa, producent, model"
+                        page.statusColor = "#ff4136"
                         return
                     }
                     page.saving = true
-                    statusLabel.text = "Wysyłam do bazy…"
-                    statusLabel.color = "white"
+                    page.statusText = "Wysyłam do bazy…"
+                    page.statusColor = "white"
                     const payload = {
                         name: page.fName, type: page.fType, vendor: page.fVendor, model: page.fModel,
                         serial_number: page.fSerial || null, part_number: page.fPart || null, revision: page.fRevision || null,
@@ -232,10 +234,11 @@ Page {
         }
 
         Label {
-            id: statusLabel
             Layout.fillWidth: true
             Layout.leftMargin: 16; Layout.rightMargin: 16
-            color: "white"; font.pixelSize: 13
+            text: page.statusText  // Q-11
+            color: page.statusColor
+            font.pixelSize: 13
             wrapMode: Text.WordWrap
         }
 
