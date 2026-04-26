@@ -4,9 +4,12 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <chrono>
+
 class AppSettings;
 class QNetworkAccessManager;
 class QNetworkReply;
+class QNetworkRequest;
 
 /**
  * HTTP client do FastAPI backendu (identify/similar/exhibits/dictionaries).
@@ -67,10 +70,22 @@ signals:
     void exhibitListError(const QString &message);
 
 private:
+    /// C-D10: zwija boilerplate auth+timeout+url z 5 endpointów do jednego miejsca.
+    /// L-02: timeout jako std::chrono — type-safe, callsite czyta `45s` zamiast `45000`.
+    /// C-D12: header `Bearer <token>` budowany 1× tutaj, nie 5× per endpoint.
+    /// @param withAuth false dla /health (publiczny endpoint pre-token).
+    QNetworkRequest prepareRequest(const QString &path,
+                                   std::chrono::milliseconds timeout,
+                                   bool withAuth = true) const;
+
+    /// C-D03: onError jako parametr — wcześniej helper hardcodował emit identifyError
+    /// dla wszystkich callerów, więc gdy ktoś dodał drugi endpoint to błąd otwarcia
+    /// pliku trafiał w pageA gdy user był na pageB. Każdy caller daje swój sygnał.
     void sendMultipartPost(const QString &endpoint,
                            const QString &photoPath,
                            std::function<void(QNetworkReply *)> onFinish,
-                           int timeoutMs = 30000);
+                           std::function<void(const QString &)> onError,
+                           std::chrono::milliseconds timeout = std::chrono::seconds(30));
 
     /// Mapuje QNetworkReply::NetworkError + response body na ludzki polski komunikat.
     /// Surowe "Error transferring ... - server replied: ..." jest nieczytelne dla usera.
