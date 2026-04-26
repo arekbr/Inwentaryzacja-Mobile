@@ -126,7 +126,7 @@ adb install -r ... && adb shell am start ... && adb logcat -d | grep -E "ApiClie
 
 Bo to przyszłość, a ja lubię testować granice. Claude, ChatGPT i GROK piszą kod szybciej, niż ja nadążam sprawdzać. To jak mieć zespół programistów w kieszeni — tylko czasem trzeba ich poprawić. 😄 Eksperyment trwa, a apka działa i ma się dobrze.
 
-Sam jestem **„marnym programistą"** (doba ma 24 godziny, dzień pracy zwykle wypełnia administracja IT, retro hobby, malarstwo i muzyka — kodowanie to wieczory) — bez AI ten projekt zająłby kilka lat. Z AI zajmuje miesiące.
+Sam jestem **„marnym programistą"** (doba ma 24 godziny, dzień pracy zwykle wypełnia administracja IT, retro hobby — kodowanie to wieczory) — bez AI ten projekt zająłby kilka lat. Z AI zajmuje miesiące.
 
 ## Powiązane projekty
 
