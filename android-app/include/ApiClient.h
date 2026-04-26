@@ -78,9 +78,13 @@ private:
                                    std::chrono::milliseconds timeout,
                                    bool withAuth = true) const;
 
+    /// C-D03: onError jako parametr — wcześniej helper hardcodował emit identifyError
+    /// dla wszystkich callerów, więc gdy ktoś dodał drugi endpoint to błąd otwarcia
+    /// pliku trafiał w pageA gdy user był na pageB. Każdy caller daje swój sygnał.
     void sendMultipartPost(const QString &endpoint,
                            const QString &photoPath,
                            std::function<void(QNetworkReply *)> onFinish,
+                           std::function<void(const QString &)> onError,
                            std::chrono::milliseconds timeout = std::chrono::seconds(30));
 
     /// Mapuje QNetworkReply::NetworkError + response body na ludzki polski komunikat.

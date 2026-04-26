@@ -186,6 +186,7 @@ void ApiClient::checkHealth()
 void ApiClient::sendMultipartPost(const QString &endpoint,
                                   const QString &photoPath,
                                   std::function<void(QNetworkReply *)> onFinish,
+                                  std::function<void(const QString &)> onError,
                                   std::chrono::milliseconds timeout)
 {
     // C-D13: unique_ptr ownership aż do release() po m_nam->post — między
@@ -195,7 +196,7 @@ void ApiClient::sendMultipartPost(const QString &endpoint,
         qWarning() << "ApiClient: cannot open photo" << photoPath;
         QMetaObject::invokeMethod(
             this,
-            [this]() { emit identifyError(QStringLiteral("Nie mogę otworzyć zdjęcia")); },
+            [onError]() { onError(QStringLiteral("Nie mogę otworzyć zdjęcia")); },
             Qt::QueuedConnection);
         return;  // file auto-destroyed
     }
@@ -245,6 +246,7 @@ void ApiClient::identify(const QString &photoPath)
             }
             emit identifyResult(doc.object().toVariantMap());
         },
+        [this](const QString &msg) { emit identifyError(msg); },
         45s);  // Claude Opus ~10-25s realistic, 45s timeout margin
 }
 
