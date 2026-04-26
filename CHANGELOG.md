@@ -7,7 +7,7 @@ Wszystkie istotne zmiany w projekcie. Format: [Keep a Changelog](https://keepach
 ### Done
 - Audit qt-cpp-review + qt-qml-review zaliczony (raport `docs/audit-2026-04-25.md`)
 - 9 PRów P1 + P2 zmergowanych: cleanup architektoniczny w ApiClient, security hardening, UX prompty 401, Q-05 universal request token, ListModel cap, Q-11 statusText pattern, Q-13 deferred do RFC
-- Lokalne sync discipline (multi-device): `feedback_git_sync_discipline.md` + naprawa narrow refspec na linux-dev
+- Lokalne sync discipline (multi-device): naprawa narrow refspec na lokalnym klonie
 - LICENSE MIT, README rozbudowane, CHANGELOG od zera, repo PUBLIC
 
 ### TODO
@@ -79,7 +79,7 @@ Wszystkie istotne zmiany w projekcie. Format: [Keep a Changelog](https://keepach
 - POST `/api/v1/identify` (Claude Opus 4.7 + DEV_MOCK fallback)
 - Schemat MariaDB `zbiory` (wspólny z desktop arekbr/Inwentaryzacja)
 - Klon bazy desktop → mobile (mysqldump 977 MB import, 1870 eksponatów)
-- Dwa device dev: macos-dev (macOS Apple Silicon, MariaDB 12.2.2) + linux-dev (Linux laptop, MariaDB 11.8.6)
+- Dev na dwóch platformach: macOS (Apple Silicon, MariaDB 12.x) + Linux (MariaDB 11.x)
 
 ### Pomyłki/lekcje
 - **Fusion + Flickable + Android 16 = rainbow render bug** (incydent landmine 11) — workaround: brak Flickable w EditExhibitPage, compact form
