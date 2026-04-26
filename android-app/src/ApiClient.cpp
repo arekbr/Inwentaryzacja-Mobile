@@ -160,7 +160,11 @@ void ApiClient::checkHealth()
 {
     const QUrl url(m_settings->apiUrl() + QStringLiteral("/health"));
     if (!url.isValid() || m_settings->apiUrl().isEmpty()) {
-        emit healthError(QStringLiteral("Brak adresu backendu — wpisz URL w Ustawieniach"));
+        // C-D11: queued — caller (QML page) moze byc destroyed miedzy
+        // wywolaniem checkHealth() a obsluga sygnalu. Sync emit by sie crash'nal.
+        QMetaObject::invokeMethod(this,
+            [this]() { emit healthError(QStringLiteral("Brak adresu backendu — wpisz URL w Ustawieniach")); },
+            Qt::QueuedConnection);
         return;
     }
 
@@ -264,7 +268,10 @@ void ApiClient::findSimilar(const QString &photoPath, int topK)
     // Dlatego robimy osobny POST tutaj, nie reużywamy sendMultipartPost.
     auto file = std::make_unique<QFile>(photoPath);
     if (!file->open(QIODevice::ReadOnly)) {
-        emit similarError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath);
+        // C-D11: queued — patrz komentarz w checkHealth.
+        QMetaObject::invokeMethod(this,
+            [this, photoPath]() { emit similarError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
+            Qt::QueuedConnection);
         return;
     }
 
