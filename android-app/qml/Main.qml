@@ -33,7 +33,7 @@ ApplicationWindow {
                 onClicked: stack.pop()
             }
             Label {
-                text: stack.currentItem ? (stack.currentItem.title || "Inwentaryzacja") : "Inwentaryzacja"
+                text: stack.currentPage?.title ?? "Inwentaryzacja"  // Q-02
                 font.pixelSize: 20
                 font.bold: true
                 color: "white"
@@ -47,7 +47,7 @@ ApplicationWindow {
                 implicitWidth: 56
                 implicitHeight: 56
                 onClicked: {
-                    if (stack.currentItem && stack.currentItem.title === "Ustawienia") return
+                    if (stack.currentPage?.title === "Ustawienia") return  // Q-02
                     stack.push("SettingsPage.qml")
                 }
             }
@@ -58,6 +58,9 @@ ApplicationWindow {
         id: stack
         anchors.fill: parent
         initialItem: welcomePage
+        // Q-02: type narrowing — stack.currentItem to QQuickItem (any), reach
+        // do .title bez kastu daje 'undefined' przy pustym stosie.
+        readonly property Page currentPage: stack.currentItem as Page
     }
 
     // C-D09 wariant A: globalny handler 401 — gdy ApiClient odrzuci token,
@@ -68,7 +71,7 @@ ApplicationWindow {
         target: apiClient
         function onTokenRequired() {
             tokenSnackbar.show()
-            if (!stack.currentItem || stack.currentItem.title !== "Ustawienia") {
+            if (stack.currentPage?.title !== "Ustawienia") {  // Q-02
                 stack.push("SettingsPage.qml")
             }
         }
@@ -109,7 +112,16 @@ ApplicationWindow {
         Page {
             id: welcomeRoot
             title: "Inwentaryzacja"
-            property var backendInfo: ({})
+            // Q-14: backendInfo trzymamy jako var ale wystawiamy derived stringi.
+            // Bez derived properties bindings typu '... + backendInfo.version'
+            // wyrenderowywaly 'undefined' przy starcie/error. Optional chain + ??
+            // gwarantuje fallback, kod konsumencki czyta version/database/etc bez null-check.
+            property var backendInfo: null
+            readonly property string version: backendInfo?.version ?? "?"
+            readonly property string database: backendInfo?.database ?? "?"
+            readonly property int exhibitsCount: backendInfo?.exhibits_count ?? 0
+            readonly property int clipIndexSize: backendInfo?.clip_index_size ?? 0
+            readonly property bool mockIdentify: backendInfo?.mock_identify ?? false
             property string backendError: ""
             property bool loading: true
 
@@ -121,7 +133,7 @@ ApplicationWindow {
                     welcomeRoot.loading = false
                 }
                 function onHealthError(msg) {
-                    welcomeRoot.backendInfo = ({})
+                    welcomeRoot.backendInfo = null  // Q-14: null zamiast ({}) — czysty signal "brak danych"
                     welcomeRoot.backendError = msg
                     welcomeRoot.loading = false
                 }
@@ -200,7 +212,7 @@ ApplicationWindow {
                                 text: welcomeRoot.loading ? "Sprawdzam backend…"
                                     : (welcomeRoot.backendError
                                         ? "✗ Backend offline"
-                                        : "✓ Backend OK (v" + welcomeRoot.backendInfo.version + ")")
+                                        : "✓ Backend OK (v" + welcomeRoot.version + ")")
                                 color: "white"
                                 font.pixelSize: 14
                                 font.bold: true
@@ -212,8 +224,8 @@ ApplicationWindow {
                         Label {
                             text: welcomeRoot.backendError
                                 ? welcomeRoot.backendError
-                                : "Baza: " + (welcomeRoot.backendInfo.database || "?")
-                                  + " • " + (welcomeRoot.backendInfo.exhibits_count || 0) + " eksp."
+                                : "Baza: " + welcomeRoot.database
+                                  + " • " + welcomeRoot.exhibitsCount + " eksp."
                             color: "#ccc"
                             font.pixelSize: 12
                             Layout.fillWidth: true
@@ -222,8 +234,8 @@ ApplicationWindow {
                         }
 
                         Label {
-                            text: "CLIP index: " + (welcomeRoot.backendInfo.clip_index_size || 0)
-                                + (welcomeRoot.backendInfo.mock_identify ? "  •  ⚙ MOCK AI" : "")
+                            text: "CLIP index: " + welcomeRoot.clipIndexSize
+                                + (welcomeRoot.mockIdentify ? "  •  ⚙ MOCK AI" : "")
                             color: "#999"
                             font.pixelSize: 11
                             Layout.fillWidth: true

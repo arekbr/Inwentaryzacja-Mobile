@@ -66,8 +66,11 @@ Page {
                     color: "black"
                     selectByMouse: true
                     inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText
+                    // Q-12: text binding read-only z TextInput POV; zapis przez
+                    // editingFinished (enter/blur) lub button "Test polaczenia".
+                    // onTextChanged writeback robil potencjalny loop (setApiUrl trimuje).
                     text: appSettings.apiUrl
-                    onTextChanged: appSettings.apiUrl = text
+                    onEditingFinished: appSettings.apiUrl = text
                 }
                 Text {
                     anchors.fill: urlInput
@@ -110,7 +113,7 @@ Page {
                     selectByMouse: true
                     echoMode: TextInput.Password
                     text: appSettings.apiToken
-                    onTextChanged: appSettings.apiToken = text
+                    onEditingFinished: appSettings.apiToken = text  // Q-12
                 }
                 Text {
                     anchors.fill: tokenInput
