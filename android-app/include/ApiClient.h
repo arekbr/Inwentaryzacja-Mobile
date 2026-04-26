@@ -76,6 +76,14 @@ private:
     /// Surowe "Error transferring ... - server replied: ..." jest nieczytelne dla usera.
     static QString formatNetworkError(QNetworkReply *reply);
 
+    /// C-D07: walidacja `photoPath` przed otwarciem QFile. Defense-in-depth:
+    /// - canonicalFilePath (rezolwuje `..`, symlinki)
+    /// - musi istnieć i być readable
+    /// - rozszerzenie .jpg/.jpeg/.png/.heic
+    /// - magic bytes JPEG (FFD8FF) lub PNG (89 50 4E 47)
+    /// Zwraca pustą string jeśli OK, error message jeśli nie.
+    static QString validatePhotoPath(const QString &photoPath);
+
     AppSettings *m_settings;
     QNetworkAccessManager *m_nam;
 };

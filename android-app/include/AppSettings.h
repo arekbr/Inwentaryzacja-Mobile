@@ -23,9 +23,16 @@ public:
     QString apiToken() const;
     void setApiToken(const QString &token);
 
+    /// C-D05: walidator URL — zwraca true jeśli http(s)://host[:port][/path].
+    /// Używany w SettingsPage (button "Test połączenia" disabled) + setApiUrl
+    /// odrzuca invalid bez emitowania apiUrlChanged.
+    Q_INVOKABLE static bool isValidApiUrl(const QString &url);
+
 signals:
     void apiUrlChanged();
     void apiTokenChanged();
+    /// Emitted gdy setApiUrl odrzucił URL (UI może pokazać feedback).
+    void apiUrlInvalid(const QString &url, const QString &reason);
 
 private:
     QSettings m_settings;
