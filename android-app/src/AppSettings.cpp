@@ -1,5 +1,7 @@
 #include "AppSettings.h"
 
+#include <QUrl>
+
 AppSettings::AppSettings(QObject *parent)
     : QObject(parent)
 {
@@ -17,11 +19,34 @@ QString AppSettings::apiUrl() const
                             QStringLiteral("http://192.168.1.100:8000")).toString();
 }
 
+bool AppSettings::isValidApiUrl(const QString &url)
+{
+    // Pusty = OK (default state, nie pokazuj błędu zanim user zacznie pisać).
+    if (url.isEmpty())
+        return true;
+    const QUrl u = QUrl::fromUserInput(url.trimmed());
+    if (!u.isValid())
+        return false;
+    if (u.scheme() != QStringLiteral("http") && u.scheme() != QStringLiteral("https"))
+        return false;
+    if (u.host().isEmpty())
+        return false;
+    return true;
+}
+
 void AppSettings::setApiUrl(const QString &url)
 {
-    if (url == apiUrl())
+    // C-D05: odrzuć malformed/wrong-scheme URL z emitem apiUrlInvalid.
+    // Bez tego user może wkleić "htttp://" z literówką i ApiClient
+    // konstruuje broken QNetworkRequest z obscure failures.
+    const QString trimmed = url.trimmed();
+    if (!isValidApiUrl(trimmed)) {
+        emit apiUrlInvalid(trimmed, QStringLiteral("Wymagane http:// lub https:// + host"));
         return;
-    m_settings.setValue(QStringLiteral("apiUrl"), url);
+    }
+    if (trimmed == apiUrl())
+        return;
+    m_settings.setValue(QStringLiteral("apiUrl"), trimmed);
     emit apiUrlChanged();
 }
 
