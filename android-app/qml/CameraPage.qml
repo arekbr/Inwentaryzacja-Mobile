@@ -8,6 +8,7 @@ Page {
     property string capturedPath: ""
 
     property bool identifying: false
+    property string currentIdentifyRid: ""  // Q-05
 
     Connections {
         // Q-04: gate na aktywną stronę — CameraIntent jest singletonem,
@@ -28,17 +29,18 @@ Page {
     Connections {
         target: apiClient
         enabled: page.StackView.status === StackView.Active
-        function onIdentifyResult(artefakt) {
+        function onIdentifyResult(requestId, artefakt) {
+            if (requestId !== page.currentIdentifyRid) return  // Q-05
             console.log("[QML] identify OK:", JSON.stringify(artefakt))
             page.identifying = false
             statusLabel.text = ""
-            // Push do ekranu edycji z wypełnionym formularzem
             stack.push("EditExhibitPage.qml", {
                 artefakt: artefakt,
                 photoPath: page.capturedPath
             })
         }
-        function onIdentifyError(msg) {
+        function onIdentifyError(requestId, msg) {
+            if (requestId !== page.currentIdentifyRid) return  // Q-05
             console.log("[QML] identify ERR:", msg)
             page.identifying = false
             statusLabel.text = "Identyfikacja: " + msg
@@ -137,7 +139,7 @@ Page {
                     if (page.capturedPath === "" || page.identifying) return
                     page.identifying = true
                     statusLabel.text = "Wysyłam do AI…"
-                    apiClient.identify(page.capturedPath)
+                    page.currentIdentifyRid = apiClient.identify(page.capturedPath)  // Q-05
                 }
                 contentItem: RowLayout {
                     spacing: 6

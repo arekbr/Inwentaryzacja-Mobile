@@ -112,10 +112,11 @@ ApplicationWindow {
         Page {
             id: welcomeRoot
             title: "Inwentaryzacja"
+            // Q-05: filtruj sygnaly per requestId — bez tego stara odpowiedz health
+            // (np. od starego URL przed zmiana w Settings) trafilaby tu i nadpisala
+            // backendInfo z nowego sprawdzenia.
+            property string currentHealthRid: ""
             // Q-14: backendInfo trzymamy jako var ale wystawiamy derived stringi.
-            // Bez derived properties bindings typu '... + backendInfo.version'
-            // wyrenderowywaly 'undefined' przy starcie/error. Optional chain + ??
-            // gwarantuje fallback, kod konsumencki czyta version/database/etc bez null-check.
             property var backendInfo: null
             readonly property string version: backendInfo?.version ?? "?"
             readonly property string database: backendInfo?.database ?? "?"
@@ -127,26 +128,28 @@ ApplicationWindow {
 
             Connections {
                 target: apiClient
-                function onHealthOk(info) {
+                function onHealthOk(requestId, info) {
+                    if (requestId !== welcomeRoot.currentHealthRid) return  // Q-05
                     welcomeRoot.backendInfo = info
                     welcomeRoot.backendError = ""
                     welcomeRoot.loading = false
                 }
-                function onHealthError(msg) {
-                    welcomeRoot.backendInfo = null  // Q-14: null zamiast ({}) — czysty signal "brak danych"
+                function onHealthError(requestId, msg) {
+                    if (requestId !== welcomeRoot.currentHealthRid) return  // Q-05
+                    welcomeRoot.backendInfo = null
                     welcomeRoot.backendError = msg
                     welcomeRoot.loading = false
                 }
             }
 
-            Component.onCompleted: apiClient.checkHealth()
+            Component.onCompleted: welcomeRoot.currentHealthRid = apiClient.checkHealth()
 
             // Auto-refresh co 15s gdy Welcome jest widoczny
             Timer {
                 interval: 15000
                 running: stack.currentItem === welcomeRoot
                 repeat: true
-                onTriggered: apiClient.checkHealth()
+                onTriggered: welcomeRoot.currentHealthRid = apiClient.checkHealth()
             }
 
             ColumnLayout {
@@ -189,7 +192,7 @@ ApplicationWindow {
                         enabled: !welcomeRoot.loading
                         onClicked: {
                             welcomeRoot.loading = true
-                            apiClient.checkHealth()
+                            welcomeRoot.currentHealthRid = apiClient.checkHealth()  // Q-05
                         }
                     }
 

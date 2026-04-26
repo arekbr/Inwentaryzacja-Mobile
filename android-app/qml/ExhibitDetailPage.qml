@@ -15,28 +15,25 @@ Page {
     property var detail: ({})            // pełny rekord pobrany z /api/v1/exhibits/{id}
     property bool loading: true
     property string errorMsg: ""
+    property string currentDetailRid: ""  // Q-05 (full): zastapil filter po exhibitId
 
     Connections {
         target: apiClient
-        function onExhibitDetail(d) {
-            if (d.id === page.exhibitId) {
-                page.detail = d
-                page.loading = false
-            }
+        function onExhibitDetail(requestId, d) {
+            if (requestId !== page.currentDetailRid) return  // Q-05
+            page.detail = d
+            page.loading = false
         }
-        // Q-05: filtruj error po exhibitId — bez tego error z requestu A
-        // surfacuje na ExhibitDetailPage instancji B (apiClient to singleton).
-        function onExhibitDetailError(msg, errExhibitId) {
-            if (errExhibitId === page.exhibitId) {
-                page.errorMsg = msg
-                page.loading = false
-            }
+        function onExhibitDetailError(requestId, msg) {
+            if (requestId !== page.currentDetailRid) return  // Q-05
+            page.errorMsg = msg
+            page.loading = false
         }
     }
 
     Component.onCompleted: {
         if (exhibitId) {
-            apiClient.getExhibit(exhibitId)
+            page.currentDetailRid = apiClient.getExhibit(exhibitId)  // Q-05
         } else {
             errorMsg = "Brak exhibit_id"
             loading = false
