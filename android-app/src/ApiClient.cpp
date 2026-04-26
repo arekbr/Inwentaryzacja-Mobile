@@ -1,11 +1,14 @@
 #include "ApiClient.h"
 #include "AppSettings.h"
 
+#include <QBuffer>
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
 #include <QHttpMultiPart>
 #include <QHttpPart>
+#include <QImage>
+#include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -24,6 +27,33 @@ namespace {
 // w ramach 1 user session praktycznie 0.
 QString newRequestId() {
     return QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
+}
+
+// Resize zdjecia PRZED uploadem: 50MP foto z Pixela (~12-15 MB) -> ~300-500 KB JPEG.
+// Powod: timeout uploadu, baza nie puchnie do 13 GB, szybszy CLIP/thumbnail na backendzie.
+// Zwraca pusty QByteArray na blad (caller raportuje).
+QByteArray loadAndResizePhoto(const QString &path, int maxDim = 2048, int quality = 85) {
+    QImageReader reader(path);
+    reader.setAutoTransform(true);  // honor EXIF orientation
+    QImage img = reader.read();
+    if (img.isNull()) {
+        qWarning() << "[ApiClient] resize: nie moge zdekodowac" << path << reader.errorString();
+        return {};
+    }
+
+    if (img.width() > maxDim || img.height() > maxDim) {
+        img = img.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+
+    QByteArray out;
+    QBuffer buf(&out);
+    buf.open(QIODevice::WriteOnly);
+    if (!img.save(&buf, "JPEG", quality)) {
+        qWarning() << "[ApiClient] resize: JPEG encode failed";
+        return {};
+    }
+    qInfo() << "[ApiClient] resize:" << path << "->" << out.size() << "B (max" << maxDim << "px, q" << quality << ")";
+    return out;
 }
 }
 
@@ -186,15 +216,41 @@ QString ApiClient::checkHealth()
     connect(reply, &QNetworkReply::finished, this, [this, reply, rid]() {
         if (reply->error() != QNetworkReply::NoError) {
             emit healthError(rid, formatNetworkError(reply));
-        } else {
-            const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-            if (doc.isNull() || !doc.isObject()) {
-                emit healthError(rid, QStringLiteral("Niepoprawna odpowiedź serwera (JSON)"));
-            } else {
-                emit healthOk(rid, doc.object().toVariantMap());
-            }
+            reply->deleteLater();
+            return;
         }
+        const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
         reply->deleteLater();
+        if (doc.isNull() || !doc.isObject()) {
+            emit healthError(rid, QStringLiteral("Niepoprawna odpowiedź serwera (JSON)"));
+            return;
+        }
+        const QVariantMap info = doc.object().toVariantMap();
+
+        // Bug-fix: /health jest publiczny (200 bez tokenu). Bez drugiego sprawdzenia
+        // welcome świeci zielono nawet z błędnym tokenem, a user widzi 401 dopiero
+        // przy wyszukiwaniu/zapisie. Drugi GET na chroniony /dictionaries weryfikuje token.
+        if (m_settings->apiToken().isEmpty()) {
+            emit healthOk(rid, info);
+            return;
+        }
+        QNetworkRequest authReq = prepareRequest(
+            QStringLiteral("/api/v1/dictionaries/types"), 5s, /*withAuth*/true);
+        QNetworkReply *authReply = m_nam->get(authReq);
+        connect(authReply, &QNetworkReply::finished, this, [this, authReply, rid, info]() {
+            const int status = authReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (authReply->error() == QNetworkReply::NoError) {
+                emit healthOk(rid, info);
+            } else if (status == 401 || authReply->error() == QNetworkReply::AuthenticationRequiredError) {
+                emit tokenRequired();
+                emit healthError(rid, QStringLiteral("Backend OK, ale token niepoprawny — sprawdź Ustawienia"));
+            } else {
+                // Inne błędy (5xx, sieć) — backend działa health, ale dictionaries padło.
+                emit healthError(rid, QStringLiteral("Backend działa, ale weryfikacja tokenu nieudana: ")
+                                      + formatNetworkError(authReply));
+            }
+            authReply->deleteLater();
+        });
     });
     return rid;
 }
@@ -205,27 +261,24 @@ void ApiClient::sendMultipartPost(const QString &endpoint,
                                   std::function<void(const QString &)> onError,
                                   std::chrono::milliseconds timeout)
 {
-    // C-D13: unique_ptr ownership aż do release() po m_nam->post — między
-    // new a post() (kilka linii alokacji) leak był teoretycznie możliwy.
-    auto file = std::make_unique<QFile>(photoPath);
-    if (!file->open(QIODevice::ReadOnly)) {
-        qWarning() << "ApiClient: cannot open photo" << photoPath;
+    // Resize PRZED uploadem (50MP Pixel -> ~400 KB JPEG).
+    const QByteArray bytes = loadAndResizePhoto(photoPath);
+    if (bytes.isEmpty()) {
         QMetaObject::invokeMethod(
             this,
-            [onError]() { onError(QStringLiteral("Nie mogę otworzyć zdjęcia")); },
+            [onError]() { onError(QStringLiteral("Nie mogę zdekodować/zmniejszyć zdjęcia")); },
             Qt::QueuedConnection);
-        return;  // file auto-destroyed
+        return;
     }
 
     auto multi = std::make_unique<QHttpMultiPart>(QHttpMultiPart::FormDataType);
     QHttpPart imagePart;
-    const QString filename = QFileInfo(photoPath).fileName();
+    const QString filename = QFileInfo(photoPath).completeBaseName() + QStringLiteral(".jpg");
     imagePart.setHeader(
         QNetworkRequest::ContentDispositionHeader,
         QVariant(QStringLiteral("form-data; name=\"images\"; filename=\"%1\"").arg(filename)));
     imagePart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("image/jpeg"));
-    imagePart.setBodyDevice(file.get());
-    file.release()->setParent(multi.get());  // ownership: multi → file
+    imagePart.setBody(bytes);
     multi->append(imagePart);
 
     QNetworkRequest req = prepareRequest(endpoint, timeout);
@@ -281,24 +334,22 @@ QString ApiClient::findSimilar(const QString &photoPath, int topK)
 
     // sendMultipartPost używa name="images" — dla /similar backend oczekuje name="image".
     // Dlatego robimy osobny POST tutaj, nie reużywamy sendMultipartPost.
-    auto file = std::make_unique<QFile>(photoPath);
-    if (!file->open(QIODevice::ReadOnly)) {
-        // C-D11: queued — patrz komentarz w checkHealth.
+    const QByteArray bytes = loadAndResizePhoto(photoPath);
+    if (bytes.isEmpty()) {
         QMetaObject::invokeMethod(this,
-            [this, rid, photoPath]() { emit similarError(rid, QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
+            [this, rid, photoPath]() { emit similarError(rid, QStringLiteral("Nie mogę zdekodować/zmniejszyć zdjęcia: ") + photoPath); },
             Qt::QueuedConnection);
         return rid;
     }
 
     auto multi = std::make_unique<QHttpMultiPart>(QHttpMultiPart::FormDataType);
     QHttpPart imagePart;
-    const QString filename = QFileInfo(photoPath).fileName();
+    const QString filename = QFileInfo(photoPath).completeBaseName() + QStringLiteral(".jpg");
     imagePart.setHeader(
         QNetworkRequest::ContentDispositionHeader,
         QVariant(QStringLiteral("form-data; name=\"image\"; filename=\"%1\"").arg(filename)));
     imagePart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("image/jpeg"));
-    imagePart.setBodyDevice(file.get());
-    file.release()->setParent(multi.get());
+    imagePart.setBody(bytes);
     multi->append(imagePart);
 
     QNetworkRequest req = prepareRequest(QStringLiteral("/api/v1/similar"), 20s);
@@ -392,13 +443,13 @@ QString ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoP
         return rid;
     }
 
-    // C-D02: multipart zamiast base64-in-JSON. Plik jest streamowany przez Qt
-    // (QFile setBodyDevice), nie ładowany całością do RAM + 33% base64 overhead.
-    // Dla 8 MB JPEG: dawniej ~25-30 MB transient heap, teraz ~8 MB raw + chunki.
-    auto file = std::make_unique<QFile>(photoPath);
-    if (!file->open(QIODevice::ReadOnly)) {
+    // C-D02: multipart zamiast base64-in-JSON. Dodatkowo resize PRZED uploadem:
+    // 50MP Pixel (~12-15 MB) -> ~400 KB JPEG. Powod: timeout, baza nie puchnie do 13 GB,
+    // szybsza similarity search.
+    const QByteArray bytes = loadAndResizePhoto(photoPath);
+    if (bytes.isEmpty()) {
         QMetaObject::invokeMethod(this,
-            [this, rid, photoPath]() { emit exhibitError(rid, QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
+            [this, rid, photoPath]() { emit exhibitError(rid, QStringLiteral("Nie mogę zdekodować/zmniejszyć zdjęcia: ") + photoPath); },
             Qt::QueuedConnection);
         return rid;
     }
@@ -428,12 +479,11 @@ QString ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoP
 
     // Photo
     QHttpPart photoPart;
-    const QString filename = QFileInfo(photoPath).fileName();
+    const QString filename = QFileInfo(photoPath).completeBaseName() + QStringLiteral(".jpg");
     photoPart.setHeader(QNetworkRequest::ContentDispositionHeader,
         QVariant(QStringLiteral("form-data; name=\"photos\"; filename=\"%1\"").arg(filename)));
     photoPart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("image/jpeg"));
-    photoPart.setBodyDevice(file.get());
-    file.release()->setParent(multi.get());
+    photoPart.setBody(bytes);
     multi->append(photoPart);
 
     QNetworkRequest req = prepareRequest(
