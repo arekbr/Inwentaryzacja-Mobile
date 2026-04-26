@@ -79,9 +79,11 @@ Page {
             border.width: inputItem.activeFocus ? 2 : 1
             TextInput {
                 id: inputItem
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
+                anchors {
+                    fill: parent
+                    leftMargin: 10
+                    rightMargin: 10
+                }
                 verticalAlignment: TextInput.AlignVCenter
                 font.pixelSize: 15
                 color: "black"
