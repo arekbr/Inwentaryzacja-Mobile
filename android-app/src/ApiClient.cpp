@@ -89,7 +89,7 @@ QString ApiClient::validatePhotoPath(const QString &photoPath)
     return QString();   // OK
 }
 
-QString ApiClient::formatNetworkError(QNetworkReply *reply)
+QString ApiClient::formatNetworkError(QNetworkReply *reply)  // C-D09: nie-static
 {
     if (!reply) return QStringLiteral("Nieznany błąd");
 
@@ -138,6 +138,10 @@ QString ApiClient::formatNetworkError(QNetworkReply *reply)
     case QNetworkReply::TemporaryNetworkFailureError:
         return QStringLiteral("Brak połączenia — sprawdź Wi-Fi/LTE");
     case QNetworkReply::AuthenticationRequiredError:
+        // C-D09 wariant A: emit sygnal zeby QML mogl auto-nawigowac do Ustawien.
+        // Token jest sessional na Androidzie (security tier-1.5), wiec po restart
+        // user musi wpisac ponownie. UI powinno go tam dowiezc.
+        emit tokenRequired();
         return QStringLiteral("Niepoprawny token API (401) — sprawdź Ustawienia");
     case QNetworkReply::ContentAccessDenied:
         return QStringLiteral("Dostęp zabroniony (403)");
