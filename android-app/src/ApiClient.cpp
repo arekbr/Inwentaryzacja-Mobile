@@ -16,6 +16,8 @@
 #include <QUrl>
 #include <QUrlQuery>
 
+using namespace std::chrono_literals;
+
 ApiClient::ApiClient(AppSettings *settings, QObject *parent)
     : QObject(parent)
     , m_settings(settings)
@@ -32,6 +34,19 @@ ApiClient::ApiClient(AppSettings *settings, QObject *parent)
                                << "url:" << reply->url().toString();
                 }
             });
+}
+
+QNetworkRequest ApiClient::prepareRequest(const QString &path,
+                                          std::chrono::milliseconds timeout,
+                                          bool withAuth) const
+{
+    QNetworkRequest req(QUrl(m_settings->apiUrl() + path));
+    req.setTransferTimeout(timeout);
+    if (withAuth && !m_settings->apiToken().isEmpty()) {
+        req.setRawHeader("Authorization",
+                         ("Bearer " + m_settings->apiToken()).toUtf8());
+    }
+    return req;
 }
 
 QString ApiClient::validatePhotoPath(const QString &photoPath)
@@ -147,8 +162,7 @@ void ApiClient::checkHealth()
         return;
     }
 
-    QNetworkRequest req(url);
-    req.setTransferTimeout(5000);   // health ma być szybki
+    QNetworkRequest req = prepareRequest(QStringLiteral("/health"), 5s, /*withAuth*/false);
     QNetworkReply *reply = m_nam->get(req);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -170,7 +184,7 @@ void ApiClient::checkHealth()
 void ApiClient::sendMultipartPost(const QString &endpoint,
                                   const QString &photoPath,
                                   std::function<void(QNetworkReply *)> onFinish,
-                                  int timeoutMs)
+                                  std::chrono::milliseconds timeout)
 {
     auto *file = new QFile(photoPath);
     if (!file->open(QIODevice::ReadOnly)) {
@@ -194,14 +208,7 @@ void ApiClient::sendMultipartPost(const QString &endpoint,
     file->setParent(multi);
     multi->append(imagePart);
 
-    const QUrl url(m_settings->apiUrl() + endpoint);
-    QNetworkRequest req(url);
-    req.setTransferTimeout(timeoutMs);
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
-
+    QNetworkRequest req = prepareRequest(endpoint, timeout);
     QNetworkReply *reply = m_nam->post(req, multi);
     multi->setParent(reply);
 
@@ -235,7 +242,7 @@ void ApiClient::identify(const QString &photoPath)
             }
             emit identifyResult(doc.object().toVariantMap());
         },
-        45000);  // Claude Opus ~10-25s realistic, 45s timeout margin
+        45s);  // Claude Opus ~10-25s realistic, 45s timeout margin
 }
 
 void ApiClient::findSimilar(const QString &photoPath, int topK)
@@ -268,17 +275,12 @@ void ApiClient::findSimilar(const QString &photoPath, int topK)
     file->setParent(multi);
     multi->append(imagePart);
 
-    QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/similar"));
+    QNetworkRequest req = prepareRequest(QStringLiteral("/api/v1/similar"), 20s);
+    QUrl url = req.url();
     QUrlQuery q;
     q.addQueryItem("top_k", QString::number(topK));
     url.setQuery(q);
-
-    QNetworkRequest req(url);
-    req.setTransferTimeout(20000);  // CLIP ~0.5s + thumbs + upload
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
+    req.setUrl(url);
 
     QNetworkReply *reply = m_nam->post(req, multi);
     multi->setParent(reply);
@@ -304,14 +306,8 @@ void ApiClient::findSimilar(const QString &photoPath, int topK)
 void ApiClient::getExhibit(const QString &exhibitId)
 {
     qInfo() << "[ApiClient] getExhibit" << exhibitId;
-    const QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits/") + exhibitId);
-    QNetworkRequest req(url);
-    req.setTransferTimeout(10000);
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
-
+    QNetworkRequest req = prepareRequest(
+        QStringLiteral("/api/v1/exhibits/") + exhibitId, 10s);
     QNetworkReply *reply = m_nam->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply, exhibitId]() {
         if (reply->error() != QNetworkReply::NoError) {
@@ -331,18 +327,13 @@ void ApiClient::getExhibit(const QString &exhibitId)
 void ApiClient::listExhibits(int page, int perPage)
 {
     qInfo() << "[ApiClient] listExhibits page=" << page << "per_page=" << perPage;
-    QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits"));
+    QNetworkRequest req = prepareRequest(QStringLiteral("/api/v1/exhibits"), 15s);
+    QUrl url = req.url();
     QUrlQuery q;
     q.addQueryItem("page", QString::number(page));
     q.addQueryItem("per_page", QString::number(perPage));
     url.setQuery(q);
-
-    QNetworkRequest req(url);
-    req.setTransferTimeout(15000);  // miniatury per page mogą zająć chwilę przy 50× JPEG
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
+    req.setUrl(url);
 
     QNetworkReply *reply = m_nam->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -415,14 +406,8 @@ void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath
     file->setParent(multi);
     multi->append(photoPart);
 
-    const QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits/multipart"));
-    QNetworkRequest req(url);
-    req.setTransferTimeout(30000);
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
-
+    QNetworkRequest req = prepareRequest(
+        QStringLiteral("/api/v1/exhibits/multipart"), 30s);
     QNetworkReply *reply = m_nam->post(req, multi);
     multi->setParent(reply);
 
