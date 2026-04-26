@@ -16,6 +16,10 @@
 #include <QUrl>
 #include <QUrlQuery>
 
+#include <memory>
+
+using namespace std::chrono_literals;
+
 ApiClient::ApiClient(AppSettings *settings, QObject *parent)
     : QObject(parent)
     , m_settings(settings)
@@ -32,6 +36,19 @@ ApiClient::ApiClient(AppSettings *settings, QObject *parent)
                                << "url:" << reply->url().toString();
                 }
             });
+}
+
+QNetworkRequest ApiClient::prepareRequest(const QString &path,
+                                          std::chrono::milliseconds timeout,
+                                          bool withAuth) const
+{
+    QNetworkRequest req(QUrl(m_settings->apiUrl() + path));
+    req.setTransferTimeout(timeout);
+    if (withAuth && !m_settings->apiToken().isEmpty()) {
+        req.setRawHeader("Authorization",
+                         ("Bearer " + m_settings->apiToken()).toUtf8());
+    }
+    return req;
 }
 
 QString ApiClient::validatePhotoPath(const QString &photoPath)
@@ -143,12 +160,15 @@ void ApiClient::checkHealth()
 {
     const QUrl url(m_settings->apiUrl() + QStringLiteral("/health"));
     if (!url.isValid() || m_settings->apiUrl().isEmpty()) {
-        emit healthError(QStringLiteral("Brak adresu backendu — wpisz URL w Ustawieniach"));
+        // C-D11: queued — caller (QML page) moze byc destroyed miedzy
+        // wywolaniem checkHealth() a obsluga sygnalu. Sync emit by sie crash'nal.
+        QMetaObject::invokeMethod(this,
+            [this]() { emit healthError(QStringLiteral("Brak adresu backendu — wpisz URL w Ustawieniach")); },
+            Qt::QueuedConnection);
         return;
     }
 
-    QNetworkRequest req(url);
-    req.setTransferTimeout(5000);   // health ma być szybki
+    QNetworkRequest req = prepareRequest(QStringLiteral("/health"), 5s, /*withAuth*/false);
     QNetworkReply *reply = m_nam->get(req);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -170,40 +190,35 @@ void ApiClient::checkHealth()
 void ApiClient::sendMultipartPost(const QString &endpoint,
                                   const QString &photoPath,
                                   std::function<void(QNetworkReply *)> onFinish,
-                                  int timeoutMs)
+                                  std::function<void(const QString &)> onError,
+                                  std::chrono::milliseconds timeout)
 {
-    auto *file = new QFile(photoPath);
+    // C-D13: unique_ptr ownership aż do release() po m_nam->post — między
+    // new a post() (kilka linii alokacji) leak był teoretycznie możliwy.
+    auto file = std::make_unique<QFile>(photoPath);
     if (!file->open(QIODevice::ReadOnly)) {
         qWarning() << "ApiClient: cannot open photo" << photoPath;
         QMetaObject::invokeMethod(
             this,
-            [this]() { emit identifyError(QStringLiteral("Nie mogę otworzyć zdjęcia")); },
+            [onError]() { onError(QStringLiteral("Nie mogę otworzyć zdjęcia")); },
             Qt::QueuedConnection);
-        delete file;
-        return;
+        return;  // file auto-destroyed
     }
 
-    auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+    auto multi = std::make_unique<QHttpMultiPart>(QHttpMultiPart::FormDataType);
     QHttpPart imagePart;
     const QString filename = QFileInfo(photoPath).fileName();
     imagePart.setHeader(
         QNetworkRequest::ContentDispositionHeader,
         QVariant(QStringLiteral("form-data; name=\"images\"; filename=\"%1\"").arg(filename)));
     imagePart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("image/jpeg"));
-    imagePart.setBodyDevice(file);
-    file->setParent(multi);
+    imagePart.setBodyDevice(file.get());
+    file.release()->setParent(multi.get());  // ownership: multi → file
     multi->append(imagePart);
 
-    const QUrl url(m_settings->apiUrl() + endpoint);
-    QNetworkRequest req(url);
-    req.setTransferTimeout(timeoutMs);
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
-
-    QNetworkReply *reply = m_nam->post(req, multi);
-    multi->setParent(reply);
+    QNetworkRequest req = prepareRequest(endpoint, timeout);
+    QNetworkReply *reply = m_nam->post(req, multi.get());
+    multi.release()->setParent(reply);  // ownership: reply → multi
 
     connect(reply, &QNetworkReply::finished, this, [reply, onFinish]() {
         onFinish(reply);
@@ -235,7 +250,8 @@ void ApiClient::identify(const QString &photoPath)
             }
             emit identifyResult(doc.object().toVariantMap());
         },
-        45000);  // Claude Opus ~10-25s realistic, 45s timeout margin
+        [this](const QString &msg) { emit identifyError(msg); },
+        45s);  // Claude Opus ~10-25s realistic, 45s timeout margin
 }
 
 void ApiClient::findSimilar(const QString &photoPath, int topK)
@@ -250,38 +266,35 @@ void ApiClient::findSimilar(const QString &photoPath, int topK)
 
     // sendMultipartPost używa name="images" — dla /similar backend oczekuje name="image".
     // Dlatego robimy osobny POST tutaj, nie reużywamy sendMultipartPost.
-    auto *file = new QFile(photoPath);
+    auto file = std::make_unique<QFile>(photoPath);
     if (!file->open(QIODevice::ReadOnly)) {
-        emit similarError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath);
-        delete file;
+        // C-D11: queued — patrz komentarz w checkHealth.
+        QMetaObject::invokeMethod(this,
+            [this, photoPath]() { emit similarError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
+            Qt::QueuedConnection);
         return;
     }
 
-    auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+    auto multi = std::make_unique<QHttpMultiPart>(QHttpMultiPart::FormDataType);
     QHttpPart imagePart;
     const QString filename = QFileInfo(photoPath).fileName();
     imagePart.setHeader(
         QNetworkRequest::ContentDispositionHeader,
         QVariant(QStringLiteral("form-data; name=\"image\"; filename=\"%1\"").arg(filename)));
     imagePart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("image/jpeg"));
-    imagePart.setBodyDevice(file);
-    file->setParent(multi);
+    imagePart.setBodyDevice(file.get());
+    file.release()->setParent(multi.get());
     multi->append(imagePart);
 
-    QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/similar"));
+    QNetworkRequest req = prepareRequest(QStringLiteral("/api/v1/similar"), 20s);
+    QUrl url = req.url();
     QUrlQuery q;
     q.addQueryItem("top_k", QString::number(topK));
     url.setQuery(q);
+    req.setUrl(url);
 
-    QNetworkRequest req(url);
-    req.setTransferTimeout(20000);  // CLIP ~0.5s + thumbs + upload
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
-
-    QNetworkReply *reply = m_nam->post(req, multi);
-    multi->setParent(reply);
+    QNetworkReply *reply = m_nam->post(req, multi.get());
+    multi.release()->setParent(reply);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError) {
@@ -304,14 +317,8 @@ void ApiClient::findSimilar(const QString &photoPath, int topK)
 void ApiClient::getExhibit(const QString &exhibitId)
 {
     qInfo() << "[ApiClient] getExhibit" << exhibitId;
-    const QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits/") + exhibitId);
-    QNetworkRequest req(url);
-    req.setTransferTimeout(10000);
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
-
+    QNetworkRequest req = prepareRequest(
+        QStringLiteral("/api/v1/exhibits/") + exhibitId, 10s);
     QNetworkReply *reply = m_nam->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply, exhibitId]() {
         if (reply->error() != QNetworkReply::NoError) {
@@ -331,18 +338,13 @@ void ApiClient::getExhibit(const QString &exhibitId)
 void ApiClient::listExhibits(int page, int perPage)
 {
     qInfo() << "[ApiClient] listExhibits page=" << page << "per_page=" << perPage;
-    QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits"));
+    QNetworkRequest req = prepareRequest(QStringLiteral("/api/v1/exhibits"), 15s);
+    QUrl url = req.url();
     QUrlQuery q;
     q.addQueryItem("page", QString::number(page));
     q.addQueryItem("per_page", QString::number(perPage));
     url.setQuery(q);
-
-    QNetworkRequest req(url);
-    req.setTransferTimeout(15000);  // miniatury per page mogą zająć chwilę przy 50× JPEG
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
+    req.setUrl(url);
 
     QNetworkReply *reply = m_nam->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -373,16 +375,15 @@ void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath
     // C-D02: multipart zamiast base64-in-JSON. Plik jest streamowany przez Qt
     // (QFile setBodyDevice), nie ładowany całością do RAM + 33% base64 overhead.
     // Dla 8 MB JPEG: dawniej ~25-30 MB transient heap, teraz ~8 MB raw + chunki.
-    auto *file = new QFile(photoPath);
+    auto file = std::make_unique<QFile>(photoPath);
     if (!file->open(QIODevice::ReadOnly)) {
         QMetaObject::invokeMethod(this,
             [this, photoPath]() { emit exhibitError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
             Qt::QueuedConnection);
-        delete file;
         return;
     }
 
-    auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+    auto multi = std::make_unique<QHttpMultiPart>(QHttpMultiPart::FormDataType);
 
     // Form fields — wszystkie oprócz photos
     for (auto it = payload.constBegin(); it != payload.constEnd(); ++it) {
@@ -411,20 +412,14 @@ void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath
     photoPart.setHeader(QNetworkRequest::ContentDispositionHeader,
         QVariant(QStringLiteral("form-data; name=\"photos\"; filename=\"%1\"").arg(filename)));
     photoPart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("image/jpeg"));
-    photoPart.setBodyDevice(file);
-    file->setParent(multi);
+    photoPart.setBodyDevice(file.get());
+    file.release()->setParent(multi.get());
     multi->append(photoPart);
 
-    const QUrl url(m_settings->apiUrl() + QStringLiteral("/api/v1/exhibits/multipart"));
-    QNetworkRequest req(url);
-    req.setTransferTimeout(30000);
-    if (!m_settings->apiToken().isEmpty()) {
-        req.setRawHeader("Authorization",
-                         ("Bearer " + m_settings->apiToken()).toUtf8());
-    }
-
-    QNetworkReply *reply = m_nam->post(req, multi);
-    multi->setParent(reply);
+    QNetworkRequest req = prepareRequest(
+        QStringLiteral("/api/v1/exhibits/multipart"), 30s);
+    QNetworkReply *reply = m_nam->post(req, multi.get());
+    multi.release()->setParent(reply);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError) {
