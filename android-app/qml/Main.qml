@@ -60,6 +60,50 @@ ApplicationWindow {
         initialItem: welcomePage
     }
 
+    // C-D09 wariant A: globalny handler 401 — gdy ApiClient odrzuci token,
+    // pokaz toast i auto-nawiguj do Ustawien (chyba ze user juz tam jest).
+    // Token na Androidzie jest sessional (security tier-1.5), wiec po restart
+    // user MUSI go wpisac ponownie — bez tego sygnalu nie wie gdzie isc.
+    Connections {
+        target: apiClient
+        function onTokenRequired() {
+            tokenSnackbar.show()
+            if (!stack.currentItem || stack.currentItem.title !== "Ustawienia") {
+                stack.push("SettingsPage.qml")
+            }
+        }
+    }
+
+    Rectangle {
+        id: tokenSnackbar
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 32 + SafeArea.margins.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: Math.min(parent.width - 32, 360)
+        height: 56
+        radius: 8
+        color: "#cc0033"
+        opacity: 0
+        z: 1000
+        function show() {
+            opacity = 1
+            hideTimer.restart()
+        }
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Label {
+            anchors.centerIn: parent
+            text: "Token wygasł — wpisz ponownie w Ustawieniach"
+            color: "white"
+            font.pixelSize: 14
+            font.bold: true
+        }
+        Timer {
+            id: hideTimer
+            interval: 3500
+            onTriggered: tokenSnackbar.opacity = 0
+        }
+    }
+
     Component {
         id: welcomePage
         Page {

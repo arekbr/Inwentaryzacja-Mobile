@@ -69,6 +69,12 @@ signals:
     void exhibitListResult(const QVariantMap &info);
     void exhibitListError(const QString &message);
 
+    /// C-D09 wariant A: emitted gdy QUALSIWIEK request dostal 401.
+    /// Token API jest sessional na Androidzie (nie persystuje przez kill — security
+    /// tier-1.5 decision), wiec po restart user musi go wpisac ponownie.
+    /// Glowny QML page lapie ten sygnal i kieruje usera do Ustawien.
+    void tokenRequired();
+
 private:
     /// C-D10: zwija boilerplate auth+timeout+url z 5 endpointów do jednego miejsca.
     /// L-02: timeout jako std::chrono — type-safe, callsite czyta `45s` zamiast `45000`.
@@ -89,7 +95,8 @@ private:
 
     /// Mapuje QNetworkReply::NetworkError + response body na ludzki polski komunikat.
     /// Surowe "Error transferring ... - server replied: ..." jest nieczytelne dla usera.
-    static QString formatNetworkError(QNetworkReply *reply);
+    /// C-D09: non-static (z static stale by emitowac tokenRequired) — potrzebny `this`.
+    QString formatNetworkError(QNetworkReply *reply);
 
     /// C-D07: walidacja `photoPath` przed otwarciem QFile. Defense-in-depth:
     /// - canonicalFilePath (rezolwuje `..`, symlinki)
