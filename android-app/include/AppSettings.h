@@ -41,7 +41,4 @@ private:
     /// = JNI call + I/O — cache w pamięci eliminuje powtarzalny koszt.
     /// Invalidate w setApiUrl po setValue.
     mutable QString m_apiUrlCache;
-#ifdef Q_OS_ANDROID
-    QString m_apiToken;
-#endif
 };
