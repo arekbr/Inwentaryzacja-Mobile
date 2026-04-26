@@ -8,20 +8,24 @@ Page {
 
     // Ustawiane przez StackView.push(..., {exhibitId, initialData})
     property string exhibitId: ""
+    // Q-14: tu zostawiam ({}) zamiast null + ?. — 14 callsite uzywa `detail.x || "?"`
+    // i refaktor na ?. byby tylko zmianem stylu bez realnej rerznicy. Dla Main.qml
+    // derived properties dalo zysk (3x reuse), tu wolality regresji > zysk.
     property var initialData: ({})       // opcjonalne minimum z listy similarity (name, vendor, model, thumbnail_b64)
     property var detail: ({})            // pełny rekord pobrany z /api/v1/exhibits/{id}
     property bool loading: true
     property string errorMsg: ""
+    property string currentDetailRid: ""  // Q-05 (full): zastapil filter po exhibitId
 
     Connections {
         target: apiClient
-        function onExhibitDetail(d) {
-            if (d.id === page.exhibitId) {
-                page.detail = d
-                page.loading = false
-            }
+        function onExhibitDetail(requestId, d) {
+            if (requestId !== page.currentDetailRid) return  // Q-05
+            page.detail = d
+            page.loading = false
         }
-        function onExhibitDetailError(msg) {
+        function onExhibitDetailError(requestId, msg) {
+            if (requestId !== page.currentDetailRid) return  // Q-05
             page.errorMsg = msg
             page.loading = false
         }
@@ -29,7 +33,7 @@ Page {
 
     Component.onCompleted: {
         if (exhibitId) {
-            apiClient.getExhibit(exhibitId)
+            page.currentDetailRid = apiClient.getExhibit(exhibitId)  // Q-05
         } else {
             errorMsg = "Brak exhibit_id"
             loading = false
@@ -42,6 +46,7 @@ Page {
 
         // Zdjęcie (duże — detail_b64 z backendu, ~800px; fallback: initialData.thumbnail_b64)
         Image {
+            id: detailImage
             Layout.fillWidth: true
             Layout.leftMargin: 16
             Layout.rightMargin: 16
@@ -51,9 +56,16 @@ Page {
                 : (page.initialData.thumbnail_b64
                     ? "data:image/jpeg;base64," + page.initialData.thumbnail_b64
                     : "")
+            // Q-06: backend zwraca ~800px, więc cap na sensowny detail size (260dp × 2 retina)
+            sourceSize.height: 520
             fillMode: Image.PreserveAspectFit
             asynchronous: true
             cache: false
+            // Q-10
+            onStatusChanged: if (status === Image.Error) {
+                console.warn("[ExhibitDetailPage] Image.Error dla", page.exhibitId)
+                page.errorMsg = page.errorMsg || "Nie mogę wczytać zdjęcia"
+            }
         }
 
         // Loading / error

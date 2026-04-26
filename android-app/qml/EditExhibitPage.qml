@@ -10,6 +10,9 @@ Page {
     property var artefakt: ({})
     property string photoPath: ""
     property bool saving: false
+    property string currentSaveRid: ""  // Q-05
+    property string statusText: ""  // Q-11
+    property color statusColor: "white"
 
     property string fName: artefakt.name || ""
     property string fType: artefakt.type || "Inne"
@@ -26,31 +29,40 @@ Page {
 
     Connections {
         target: apiClient
-        function onExhibitSaved(id, photosCount) {
+        function onExhibitSaved(requestId, id, photosCount) {
+            if (requestId !== page.currentSaveRid) return  // Q-05
             page.saving = false
-            statusLabel.text = "✓ Zapisano (id: " + id.substr(0, 8) + "…)"
-            statusLabel.color = "#2ecc40"
+            page.statusText = "✓ Zapisano (id: " + id.substr(0, 8) + "…)"
+            page.statusColor = "#2ecc40"
             returnTimer.start()
         }
-        function onExhibitError(msg) {
+        function onExhibitError(requestId, msg) {
+            if (requestId !== page.currentSaveRid) return  // Q-05
             page.saving = false
-            statusLabel.text = "✗ " + msg
-            statusLabel.color = "#ff4136"
+            page.statusText = "✗ " + msg
+            page.statusColor = "#ff4136"
         }
     }
 
     Timer {
         id: returnTimer
         interval: 1500
-        onTriggered: stack.pop(null)
+        // Q-05: pop(page) zamiast pop(null) — gdy timer wystrzeli z opóźnieniem
+        // a user już nawigował dalej, pop(null) cofnie do root i wywali jego stronę.
+        // pop(page) cofnie tylko jeśli `page` jest na stosie.
+        onTriggered: stack.pop(page)
     }
 
     // Komponent "wiersz" — Label | Input obok siebie (żeby zmieścić bez scrolla)
     component FormRow: RowLayout {
+        // Q-03: id: row + qualified row.hints zamiast parent.parent.hints —
+        // bez tego dodanie kontenera (np. Frame/ScrollView) zerwie hint binding
+        // bo level zagniezdzenia sie zmieni. Qualified jest deterministyczny.
+        id: row
         property alias label: labelItem.text
         property alias value: inputItem.text
         property alias inputId: inputItem
-        property var hints: 0
+        property int hints: Qt.ImhNone
         Layout.fillWidth: true
         Layout.leftMargin: 16
         Layout.rightMargin: 16
@@ -72,34 +84,51 @@ Page {
             border.width: inputItem.activeFocus ? 2 : 1
             TextInput {
                 id: inputItem
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
+                anchors {
+                    fill: parent
+                    leftMargin: 10
+                    rightMargin: 10
+                }
                 verticalAlignment: TextInput.AlignVCenter
                 font.pixelSize: 15
                 color: "black"
                 selectByMouse: true
-                inputMethodHints: parent.parent.hints || Qt.ImhNone
+                inputMethodHints: row.hints  // Q-03: qualified id
             }
         }
     }
 
     ColumnLayout {
         anchors.fill: parent
+        // Q-15: IME-aware bottom margin — bez tego soft keyboard zakrywa Save button.
+        // Animowane przez Behavior żeby uniknąć skoków przy pojawieniu/zniknięciu klawiatury.
+        anchors.bottomMargin: Qt.inputMethod.visible
+            ? Math.max(0, Qt.inputMethod.keyboardRectangle.height - SafeArea.margins.bottom)
+            : 0
+        Behavior on anchors.bottomMargin { NumberAnimation { duration: 150 } }
         spacing: 8
 
         Item { Layout.preferredHeight: 4 }
 
         // Zdjęcie
         Image {
+            id: photoImage
             Layout.fillWidth: true
             Layout.leftMargin: 16
             Layout.rightMargin: 16
             Layout.preferredHeight: 180
             source: page.photoPath !== "" ? "file://" + page.photoPath : ""
+            // Q-06: cap dekodowania (180dp × 2 retina)
+            sourceSize.height: 360
             fillMode: Image.PreserveAspectFit
             autoTransform: true
             asynchronous: true
+            // Q-10: gdy Android wyrzuci cache między capture a edit
+            onStatusChanged: if (status === Image.Error) {
+                console.warn("[EditExhibitPage] Image.Error:", photoImage.source)
+                page.statusText = "✗ Nie mogę wczytać zdjęcia (cache cleanup?)"
+                page.statusColor = "#ff4136"
+            }
         }
 
         // AI pewność
@@ -185,13 +214,13 @@ Page {
                 enabled: !page.saving
                 onClicked: {
                     if (!page.fName || !page.fVendor || !page.fModel) {
-                        statusLabel.text = "Wymagane: nazwa, producent, model"
-                        statusLabel.color = "#ff4136"
+                        page.statusText = "Wymagane: nazwa, producent, model"
+                        page.statusColor = "#ff4136"
                         return
                     }
                     page.saving = true
-                    statusLabel.text = "Wysyłam do bazy…"
-                    statusLabel.color = "white"
+                    page.statusText = "Wysyłam do bazy…"
+                    page.statusColor = "white"
                     const payload = {
                         name: page.fName, type: page.fType, vendor: page.fVendor, model: page.fModel,
                         serial_number: page.fSerial || null, part_number: page.fPart || null, revision: page.fRevision || null,
@@ -199,16 +228,17 @@ Page {
                         status: page.fStatus, storage_place: page.fStorage,
                         description: page.fDescription, has_original_packaging: page.fPacking
                     }
-                    apiClient.saveExhibit(payload, page.photoPath)
+                    page.currentSaveRid = apiClient.saveExhibit(payload, page.photoPath)  // Q-05
                 }
             }
         }
 
         Label {
-            id: statusLabel
             Layout.fillWidth: true
             Layout.leftMargin: 16; Layout.rightMargin: 16
-            color: "white"; font.pixelSize: 13
+            text: page.statusText  // Q-11
+            color: page.statusColor
+            font.pixelSize: 13
             wrapMode: Text.WordWrap
         }
 

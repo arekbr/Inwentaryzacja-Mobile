@@ -12,13 +12,20 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 
 from app.auth import require_token
 from app.db import db_cursor, lookup_or_insert
-from app.image_utils import make_detail_image, preprocess_for_storage, validate_image_bytes
+from app.image_utils import make_detail_image, make_thumbnail, preprocess_for_storage, validate_image_bytes
 from app.rate_limit import limiter
-from app.schemas import ExhibitCreate, ExhibitCreateResponse, ExhibitDetail
+from app.schemas import (
+    ExhibitCreate,
+    ExhibitCreateResponse,
+    ExhibitDetail,
+    ExhibitListItem,
+    ExhibitListResponse,
+)
+from app.schemas import Status as StatusEnum, Typ as TypEnum
 
 MAX_PHOTO_BYTES = 8 * 1024 * 1024   # per photo, po base64 decode
 
@@ -104,6 +111,160 @@ def create_exhibit(request: Request, payload: ExhibitCreate) -> ExhibitCreateRes
             )
 
     return ExhibitCreateResponse(id=eksponat_id, photos_count=len(processed_photos))
+
+
+def _persist_exhibit(meta: ExhibitCreate, photo_blobs: list[bytes]) -> ExhibitCreateResponse:
+    """Wspólna ścieżka zapisu — używana przez JSON i multipart endpointy."""
+    eksponat_id = str(uuid.uuid4())
+    with db_cursor() as cur:
+        type_id = lookup_or_insert(cur, "types", meta.type)
+        vendor_id = lookup_or_insert(cur, "vendors", meta.vendor)
+        model_id = lookup_or_insert(cur, "models", meta.model, {"vendor_id": vendor_id})
+        status_id = lookup_or_insert(cur, "statuses", meta.status)
+        storage_id = lookup_or_insert(cur, "storage_places", meta.storage_place)
+
+        cur.execute(
+            _INSERT_EKSPONAT,
+            (
+                eksponat_id, meta.name, type_id, vendor_id, model_id,
+                meta.serial_number, meta.part_number, meta.revision, meta.production_year,
+                status_id, storage_id, meta.description, meta.value,
+                1 if meta.has_original_packaging else 0,
+            ),
+        )
+        for blob in photo_blobs:
+            cur.execute(_INSERT_PHOTO, (str(uuid.uuid4()), eksponat_id, blob))
+
+    return ExhibitCreateResponse(id=eksponat_id, photos_count=len(photo_blobs))
+
+
+@router.post("/exhibits/multipart", response_model=ExhibitCreateResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
+async def create_exhibit_multipart(
+    request: Request,
+    name: str = Form(...),
+    type: TypEnum = Form(...),
+    vendor: str = Form(...),
+    model: str = Form(...),
+    status_field: StatusEnum = Form(..., alias="status"),
+    storage_place: str = Form(...),
+    serial_number: str | None = Form(default=None),
+    part_number: str | None = Form(default=None),
+    revision: str | None = Form(default=None),
+    production_year: int | None = Form(default=None, ge=1900, le=2100),
+    description: str | None = Form(default=None),
+    value: int | None = Form(default=None, ge=0),
+    has_original_packaging: bool = Form(default=False),
+    photos: list[UploadFile] = File(default_factory=list),
+) -> ExhibitCreateResponse:
+    """C-D02: multipart wariant — Android wysyła plik streamem zamiast base64-in-JSON
+    (oszczędza ~25-30 MB transient RAM przy 8 MB JPEG na low-end Androidzie)."""
+    processed: list[bytes] = []
+    for i, upload in enumerate(photos):
+        raw = await upload.read()
+        if len(raw) > MAX_PHOTO_BYTES:
+            raise HTTPException(
+                status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Zdjęcie #{i} przekracza {MAX_PHOTO_BYTES // 1024 // 1024} MB",
+            )
+        validate_image_bytes(raw, label=f"zdjęcie #{i}")
+        try:
+            processed.append(preprocess_for_storage(raw))
+        except Exception as e:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Zdjęcie #{i}: błąd przetwarzania",
+            ) from e
+
+    meta = ExhibitCreate(
+        name=name, type=type, vendor=vendor, model=model,
+        status=status_field, storage_place=storage_place,
+        serial_number=serial_number, part_number=part_number, revision=revision,
+        production_year=production_year, description=description, value=value,
+        has_original_packaging=has_original_packaging,
+        photos_base64=[],  # multipart route — base64 nie używane
+    )
+    return _persist_exhibit(meta, processed)
+
+
+_SELECT_LIST = """
+SELECT
+    e.id, e.name,
+    v.name AS vendor, m.name AS model
+FROM eksponaty e
+LEFT JOIN vendors v ON v.id = e.vendor_id
+LEFT JOIN models m ON m.id = e.model_id
+ORDER BY e.name ASC, e.id ASC
+LIMIT %s OFFSET %s
+"""
+
+
+@router.get("/exhibits", response_model=ExhibitListResponse)
+@limiter.limit("60/minute")
+def list_exhibits(
+    request: Request,
+    page: int = 1,
+    per_page: int = 50,
+) -> ExhibitListResponse:
+    """Lista eksponatów alfabetycznie + miniatury (~400px) pierwszych zdjęć."""
+    if page < 1:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "page musi być >= 1")
+    if per_page < 1 or per_page > 100:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "per_page musi być w 1..100")
+
+    offset = (page - 1) * per_page
+
+    with db_cursor() as cur:
+        cur.execute("SELECT COUNT(*) AS c FROM eksponaty")
+        total_row = cur.fetchone()
+        total = int(total_row["c"]) if total_row else 0
+
+        cur.execute(_SELECT_LIST, (per_page, offset))
+        rows = cur.fetchall()
+
+        thumbs_by_id: dict[str, str] = {}
+        if rows:
+            ids = [row["id"] for row in rows]
+            placeholders = ",".join(["%s"] * len(ids))
+            cur.execute(
+                f"""
+                SELECT p.eksponat_id, p.photo
+                FROM photos p
+                INNER JOIN (
+                    SELECT eksponat_id, MIN(id) AS first_id
+                    FROM photos
+                    WHERE eksponat_id IN ({placeholders})
+                    GROUP BY eksponat_id
+                ) firsts ON p.id = firsts.first_id
+                """,  # noqa: S608  (placeholders zbudowane z len(ids), nie z user input)
+                ids,
+            )
+            for prow in cur.fetchall():
+                eid = prow["eksponat_id"]
+                blob = prow["photo"]
+                try:
+                    thumbs_by_id[eid] = base64.standard_b64encode(make_thumbnail(blob)).decode("ascii")
+                except Exception as e:
+                    logger.warning("list_exhibits: thumbnail failed for %s: %s", eid, e)
+
+    results = [
+        ExhibitListItem(
+            id=row["id"],
+            name=row["name"],
+            vendor=row["vendor"],
+            model=row["model"],
+            thumbnail_b64=thumbs_by_id.get(row["id"]),
+        )
+        for row in rows
+    ]
+
+    return ExhibitListResponse(
+        results=results,
+        total=total,
+        page=page,
+        per_page=per_page,
+        has_more=offset + len(rows) < total,
+    )
 
 
 _SELECT_EXHIBIT = """

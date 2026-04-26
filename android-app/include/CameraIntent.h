@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+
 #include <QObject>
 #include <QString>
 
@@ -21,6 +23,7 @@
 class CameraIntent : public QObject
 {
     Q_OBJECT
+    Q_DISABLE_COPY_MOVE(CameraIntent)
 public:
     explicit CameraIntent(QObject *parent = nullptr);
     ~CameraIntent() override;
@@ -34,5 +37,7 @@ signals:
     void photoError(const QString &message);
 
 private:
-    static CameraIntent *s_instance;
+    // C-D01: atomic, czytany z JNI binder thread w nativeOnPhoto*.
+    // Bez tego na ARM Android brak memory barrier = realny reordering hazard.
+    static std::atomic<CameraIntent *> s_instance;
 };
