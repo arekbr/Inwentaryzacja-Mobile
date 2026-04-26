@@ -8,6 +8,9 @@ Page {
 
     // Ustawiane przez StackView.push(..., {exhibitId, initialData})
     property string exhibitId: ""
+    // Q-14: tu zostawiam ({}) zamiast null + ?. — 14 callsite uzywa `detail.x || "?"`
+    // i refaktor na ?. byby tylko zmianem stylu bez realnej rerznicy. Dla Main.qml
+    // derived properties dalo zysk (3x reuse), tu wolality regresji > zysk.
     property var initialData: ({})       // opcjonalne minimum z listy similarity (name, vendor, model, thumbnail_b64)
     property var detail: ({})            // pełny rekord pobrany z /api/v1/exhibits/{id}
     property bool loading: true

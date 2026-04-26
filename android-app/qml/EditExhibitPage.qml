@@ -50,10 +50,14 @@ Page {
 
     // Komponent "wiersz" — Label | Input obok siebie (żeby zmieścić bez scrolla)
     component FormRow: RowLayout {
+        // Q-03: id: row + qualified row.hints zamiast parent.parent.hints —
+        // bez tego dodanie kontenera (np. Frame/ScrollView) zerwie hint binding
+        // bo level zagniezdzenia sie zmieni. Qualified jest deterministyczny.
+        id: row
         property alias label: labelItem.text
         property alias value: inputItem.text
         property alias inputId: inputItem
-        property var hints: 0
+        property int hints: Qt.ImhNone
         Layout.fillWidth: true
         Layout.leftMargin: 16
         Layout.rightMargin: 16
@@ -82,7 +86,7 @@ Page {
                 font.pixelSize: 15
                 color: "black"
                 selectByMouse: true
-                inputMethodHints: parent.parent.hints || Qt.ImhNone
+                inputMethodHints: row.hints  // Q-03: qualified id
             }
         }
     }
