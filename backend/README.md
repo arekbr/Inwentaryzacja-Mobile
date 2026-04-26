@@ -47,4 +47,4 @@ backend/
 
 ## Deployment (docelowo)
 
-Systemd service na debianJD, uvicorn za WireGuardem — bez public IP. Docker-compose w `infra/` (będzie).
+Systemd service na własnym serwerze, uvicorn za WireGuardem — bez public IP. Docker-compose w `infra/` (będzie).

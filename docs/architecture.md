@@ -54,7 +54,7 @@ Dokument projektowy. Stan: kwiecień 2026, sole maintainer.
 ## Apka Qt Android
 
 ### Stack
-- **Qt 6.9.x Android arm64_v8a** (build z carbon Linux LUB mak Apple Silicon)
+- **Qt 6.9.x Android arm64_v8a** (build z Linux lub macOS Apple Silicon)
 - **QML 6** (Welcome/Camera/Edit/Similar/Detail/List/Settings pages)
 - **C++17** dla ApiClient + CameraIntent + AppSettings
 - **JNI bridge** dla Camera Intent (Pixel HDR+/Night Sight, NIE QtMultimedia QCamera)
@@ -131,17 +131,16 @@ types, vendors, models, statuses, storage_places  -- słowniki, lookup_or_insert
 
 ## Multi-device dev setup
 
-Apka + backend dev na 3 maszynach:
+Apka + backend dev na kilku komputerach:
 
-| Maszyna | Rola | Backend? | Baza? |
+| Platforma | Rola | Backend? | Baza? |
 |---|---|---|---|
-| **mak** (Mac Studio Apple Silicon, 10.10.0.83) | dev primary | TAK (port 8000) | TAK (MariaDB 12.2.2) |
-| **carbon** (Linux laptop, 10.10.0.49) | dev secondary, Android build | TAK (port 8000) | TAK (klon przez mysqldump) |
-| **debianJD** (serwer, 10.10.0.254) | NIE używany dla Inwentaryzacji-Mobile | — | — |
+| macOS (Apple Silicon) | dev primary | TAK (port 8000) | TAK (MariaDB) |
+| Linux | dev secondary, Android build | TAK (port 8000) | TAK (klon przez mysqldump) |
 
-Apka konfigurowana per-maszyna: Settings → URL = `http://10.10.0.83:8000` (mak) lub `http://10.10.0.49:8000` (carbon).
+Apka konfigurowana per-komputer: Settings → URL = `http://<adres-backendu>:8000`.
 
-Klucz API + token bearer per-maszyna w `.env` backendu.
+Klucz API + token bearer per-komputer w `.env` backendu.
 
 ## Roadmap (kwiecień 2026)
 
@@ -174,5 +173,5 @@ Klucz API + token bearer per-maszyna w `.env` backendu.
 - **JNI Camera Intent** zamiast QCamera — Pixel HDR+/Night Sight tylko przez native Intent, QtMultimedia daje plain camera bez przetwarzania
 - **Multipart upload** zamiast base64 w JSON — base64 dla 8 MB JPEG = ~25-30 MB transient heap, OOM risk na low-end Android (audit C-D02)
 - **Token sessional** (Android) zamiast persistent — security tier-1.5 świadoma decyzja (backup/restore exposure), tier-2 plan: Android Keystore
-- **Backend deploy NIE na debianJD** — od razu na hosting internetowy żeby apka działała wszędzie z internetem bez VPN
+- **Backend deploy nie na własny serwer** — od razu na hosting internetowy żeby apka działała wszędzie z internetem bez VPN
 - **Mono-repo** (mobile zawiera `backend/` + `android-app/` + `infra/` + `docs/`) — preferencja "wszystko razem"
