@@ -33,7 +33,7 @@ ApplicationWindow {
                 onClicked: stack.pop()
             }
             Label {
-                text: stack.currentItem ? (stack.currentItem.title || "Inwentaryzacja") : "Inwentaryzacja"
+                text: stack.currentPage?.title ?? "Inwentaryzacja"  // Q-02
                 font.pixelSize: 20
                 font.bold: true
                 color: "white"
@@ -47,7 +47,7 @@ ApplicationWindow {
                 implicitWidth: 56
                 implicitHeight: 56
                 onClicked: {
-                    if (stack.currentItem && stack.currentItem.title === "Ustawienia") return
+                    if (stack.currentPage?.title === "Ustawienia") return  // Q-02
                     stack.push("SettingsPage.qml")
                 }
             }
@@ -58,6 +58,53 @@ ApplicationWindow {
         id: stack
         anchors.fill: parent
         initialItem: welcomePage
+        // Q-02: type narrowing — stack.currentItem to QQuickItem (any), reach
+        // do .title bez kastu daje 'undefined' przy pustym stosie.
+        readonly property Page currentPage: stack.currentItem as Page
+    }
+
+    // C-D09 wariant A: globalny handler 401 — gdy ApiClient odrzuci token,
+    // pokaz toast i auto-nawiguj do Ustawien (chyba ze user juz tam jest).
+    // Token na Androidzie jest sessional (security tier-1.5), wiec po restart
+    // user MUSI go wpisac ponownie — bez tego sygnalu nie wie gdzie isc.
+    Connections {
+        target: apiClient
+        function onTokenRequired() {
+            tokenSnackbar.show()
+            if (stack.currentPage?.title !== "Ustawienia") {  // Q-02
+                stack.push("SettingsPage.qml")
+            }
+        }
+    }
+
+    Rectangle {
+        id: tokenSnackbar
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 32 + SafeArea.margins.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: Math.min(parent.width - 32, 360)
+        height: 56
+        radius: 8
+        color: "#cc0033"
+        opacity: 0
+        z: 1000
+        function show() {
+            opacity = 1
+            hideTimer.restart()
+        }
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Label {
+            anchors.centerIn: parent
+            text: "Token wygasł — wpisz ponownie w Ustawieniach"
+            color: "white"
+            font.pixelSize: 14
+            font.bold: true
+        }
+        Timer {
+            id: hideTimer
+            interval: 3500
+            onTriggered: tokenSnackbar.opacity = 0
+        }
     }
 
     Component {
@@ -65,32 +112,44 @@ ApplicationWindow {
         Page {
             id: welcomeRoot
             title: "Inwentaryzacja"
-            property var backendInfo: ({})
+            // Q-05: filtruj sygnaly per requestId — bez tego stara odpowiedz health
+            // (np. od starego URL przed zmiana w Settings) trafilaby tu i nadpisala
+            // backendInfo z nowego sprawdzenia.
+            property string currentHealthRid: ""
+            // Q-14: backendInfo trzymamy jako var ale wystawiamy derived stringi.
+            property var backendInfo: null
+            readonly property string version: backendInfo?.version ?? "?"
+            readonly property string database: backendInfo?.database ?? "?"
+            readonly property int exhibitsCount: backendInfo?.exhibits_count ?? 0
+            readonly property int clipIndexSize: backendInfo?.clip_index_size ?? 0
+            readonly property bool mockIdentify: backendInfo?.mock_identify ?? false
             property string backendError: ""
             property bool loading: true
 
             Connections {
                 target: apiClient
-                function onHealthOk(info) {
+                function onHealthOk(requestId, info) {
+                    if (requestId !== welcomeRoot.currentHealthRid) return  // Q-05
                     welcomeRoot.backendInfo = info
                     welcomeRoot.backendError = ""
                     welcomeRoot.loading = false
                 }
-                function onHealthError(msg) {
-                    welcomeRoot.backendInfo = ({})
+                function onHealthError(requestId, msg) {
+                    if (requestId !== welcomeRoot.currentHealthRid) return  // Q-05
+                    welcomeRoot.backendInfo = null
                     welcomeRoot.backendError = msg
                     welcomeRoot.loading = false
                 }
             }
 
-            Component.onCompleted: apiClient.checkHealth()
+            Component.onCompleted: welcomeRoot.currentHealthRid = apiClient.checkHealth()
 
             // Auto-refresh co 15s gdy Welcome jest widoczny
             Timer {
                 interval: 15000
                 running: stack.currentItem === welcomeRoot
                 repeat: true
-                onTriggered: apiClient.checkHealth()
+                onTriggered: welcomeRoot.currentHealthRid = apiClient.checkHealth()
             }
 
             ColumnLayout {
@@ -133,7 +192,7 @@ ApplicationWindow {
                         enabled: !welcomeRoot.loading
                         onClicked: {
                             welcomeRoot.loading = true
-                            apiClient.checkHealth()
+                            welcomeRoot.currentHealthRid = apiClient.checkHealth()  // Q-05
                         }
                     }
 
@@ -156,7 +215,7 @@ ApplicationWindow {
                                 text: welcomeRoot.loading ? "Sprawdzam backend…"
                                     : (welcomeRoot.backendError
                                         ? "✗ Backend offline"
-                                        : "✓ Backend OK (v" + welcomeRoot.backendInfo.version + ")")
+                                        : "✓ Backend OK (v" + welcomeRoot.version + ")")
                                 color: "white"
                                 font.pixelSize: 14
                                 font.bold: true
@@ -168,8 +227,8 @@ ApplicationWindow {
                         Label {
                             text: welcomeRoot.backendError
                                 ? welcomeRoot.backendError
-                                : "Baza: " + (welcomeRoot.backendInfo.database || "?")
-                                  + " • " + (welcomeRoot.backendInfo.exhibits_count || 0) + " eksp."
+                                : "Baza: " + welcomeRoot.database
+                                  + " • " + welcomeRoot.exhibitsCount + " eksp."
                             color: "#ccc"
                             font.pixelSize: 12
                             Layout.fillWidth: true
@@ -178,8 +237,8 @@ ApplicationWindow {
                         }
 
                         Label {
-                            text: "CLIP index: " + (welcomeRoot.backendInfo.clip_index_size || 0)
-                                + (welcomeRoot.backendInfo.mock_identify ? "  •  ⚙ MOCK AI" : "")
+                            text: "CLIP index: " + welcomeRoot.clipIndexSize
+                                + (welcomeRoot.mockIdentify ? "  •  ⚙ MOCK AI" : "")
                             color: "#999"
                             font.pixelSize: 11
                             Layout.fillWidth: true
@@ -203,6 +262,14 @@ ApplicationWindow {
                     enabled: !welcomeRoot.backendError
                     opacity: welcomeRoot.backendError ? 0.5 : 1.0
                     onClicked: stack.push("SimilarPage.qml")
+                }
+
+                Button {
+                    text: "Przeglądaj bazę"
+                    Layout.fillWidth: true
+                    enabled: !welcomeRoot.backendError
+                    opacity: welcomeRoot.backendError ? 0.5 : 1.0
+                    onClicked: stack.push("ExhibitListPage.qml")
                 }
 
                 Item { Layout.fillHeight: true }

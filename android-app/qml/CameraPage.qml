@@ -8,36 +8,43 @@ Page {
     property string capturedPath: ""
 
     property bool identifying: false
+    property string currentIdentifyRid: ""  // Q-05
+    property string statusText: ""  // Q-11
 
     Connections {
+        // Q-04: gate na aktywną stronę — CameraIntent jest singletonem,
+        // bez tego dwie strony jednocześnie odbierałyby photoCaptured.
         target: cameraIntent
+        enabled: page.StackView.status === StackView.Active
         function onPhotoCaptured(path) {
             console.log("[QML] photoCaptured:", path)
             page.capturedPath = path
-            statusLabel.text = ""
+            page.statusText = ""
         }
         function onPhotoError(msg) {
             console.log("[QML] photoError:", msg)
-            statusLabel.text = msg
+            page.statusText = msg
         }
     }
 
     Connections {
         target: apiClient
-        function onIdentifyResult(artefakt) {
+        enabled: page.StackView.status === StackView.Active
+        function onIdentifyResult(requestId, artefakt) {
+            if (requestId !== page.currentIdentifyRid) return  // Q-05
             console.log("[QML] identify OK:", JSON.stringify(artefakt))
             page.identifying = false
-            statusLabel.text = ""
-            // Push do ekranu edycji z wypełnionym formularzem
+            page.statusText = ""
             stack.push("EditExhibitPage.qml", {
                 artefakt: artefakt,
                 photoPath: page.capturedPath
             })
         }
-        function onIdentifyError(msg) {
+        function onIdentifyError(requestId, msg) {
+            if (requestId !== page.currentIdentifyRid) return  // Q-05
             console.log("[QML] identify ERR:", msg)
             page.identifying = false
-            statusLabel.text = "Identyfikacja: " + msg
+            page.statusText = "Identyfikacja: " + msg
         }
     }
 
@@ -82,24 +89,27 @@ Page {
                 onStatusChanged: {
                     console.log("[QML] previewImg status:", status, "src:", source)
                     if (status === Image.Error) {
-                        statusLabel.text = "Nie mogę wczytać zdjęcia: " + source
+                        page.statusText = "Nie mogę wczytać zdjęcia: " + source
                     }
                 }
             }
 
             Rectangle {
-                anchors.bottom: parent.bottom
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottomMargin: 16
+                anchors {
+                    bottom: parent.bottom
+                    horizontalCenter: parent.horizontalCenter
+                    bottomMargin: 16
+                }
                 width: Math.min(parent.width - 32, statusLabel.implicitWidth + 32)
                 height: statusLabel.implicitHeight + 16
                 color: "#A0000000"
                 radius: 8
-                visible: statusLabel.text.length > 0
+                visible: page.statusText.length > 0
                 Label {
                     id: statusLabel
                     anchors.centerIn: parent
                     width: parent.width - 24
+                    text: page.statusText  // Q-11
                     color: "white"
                     font.pixelSize: 13
                     horizontalAlignment: Text.AlignHCenter
@@ -117,7 +127,7 @@ Page {
                 text: page.capturedPath === "" ? "Zrób zdjęcie" : "Zrób ponownie"
                 Layout.fillWidth: true
                 onClicked: {
-                    statusLabel.text = ""
+                    page.statusText = ""
                     page.capturedPath = ""
                     cameraIntent.launch()
                 }
@@ -130,8 +140,8 @@ Page {
                 onClicked: {
                     if (page.capturedPath === "" || page.identifying) return
                     page.identifying = true
-                    statusLabel.text = "Wysyłam do AI…"
-                    apiClient.identify(page.capturedPath)
+                    page.statusText = "Wysyłam do AI…"
+                    page.currentIdentifyRid = apiClient.identify(page.capturedPath)  // Q-05
                 }
                 contentItem: RowLayout {
                     spacing: 6

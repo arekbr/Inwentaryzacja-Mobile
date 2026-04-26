@@ -36,6 +36,7 @@ qt_add_qml_module(InwentaryzacjaMobile
         qml/EditExhibitPage.qml
         qml/SimilarPage.qml
         qml/ExhibitDetailPage.qml
+        qml/ExhibitListPage.qml
 )
 
 target_link_libraries(InwentaryzacjaMobile PRIVATE

@@ -6,19 +6,27 @@ Page {
     id: page
     title: "Ustawienia"
     property bool checking: false
+    property string currentHealthRid: ""  // Q-05
+
+    // Q-11: declarative statusText/statusColor zamiast imperatywnego
+    // statusLabel.text=. Wszystkie write idą tu, Label robi binding.
+    property string statusText: ""
+    property color statusColor: "white"
 
     Connections {
         target: apiClient
-        function onHealthOk(info) {
+        function onHealthOk(requestId, info) {
+            if (requestId !== page.currentHealthRid) return  // Q-05
             page.checking = false
-            statusLabel.text = "✓ API " + info.version + " • baza: " + info.database
+            page.statusText = "✓ API " + info.version + " • baza: " + info.database
                 + " (" + info.exhibits_count + " eksp.)"
-            statusLabel.color = "#2ecc40"
+            page.statusColor = "#2ecc40"
         }
-        function onHealthError(msg) {
+        function onHealthError(requestId, msg) {
+            if (requestId !== page.currentHealthRid) return  // Q-05
             page.checking = false
-            statusLabel.text = "✗ " + msg
-            statusLabel.color = "#ff4136"
+            page.statusText = "✗ " + msg
+            page.statusColor = "#ff4136"
         }
     }
 
@@ -66,8 +74,11 @@ Page {
                     color: "black"
                     selectByMouse: true
                     inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText
+                    // Q-12: text binding read-only z TextInput POV; zapis przez
+                    // editingFinished (enter/blur) lub button "Test polaczenia".
+                    // onTextChanged writeback robil potencjalny loop (setApiUrl trimuje).
                     text: appSettings.apiUrl
-                    onTextChanged: appSettings.apiUrl = text
+                    onEditingFinished: appSettings.apiUrl = text
                 }
                 Text {
                     anchors.fill: urlInput
@@ -110,7 +121,7 @@ Page {
                     selectByMouse: true
                     echoMode: TextInput.Password
                     text: appSettings.apiToken
-                    onTextChanged: appSettings.apiToken = text
+                    onEditingFinished: appSettings.apiToken = text  // Q-12
                 }
                 Text {
                     anchors.fill: tokenInput
@@ -132,9 +143,9 @@ Page {
                     appSettings.apiUrl = urlInput.text
                     appSettings.apiToken = tokenInput.text
                     page.checking = true
-                    statusLabel.text = "Sprawdzam…"
-                    statusLabel.color = "white"
-                    apiClient.checkHealth()
+                    page.statusText = "Sprawdzam…"
+                    page.statusColor = "white"
+                    page.currentHealthRid = apiClient.checkHealth()  // Q-05
                 }
                 contentItem: RowLayout {
                     spacing: 6
@@ -153,11 +164,11 @@ Page {
             }
 
             Label {
-                id: statusLabel
                 Layout.fillWidth: true
                 Layout.leftMargin: 24
                 Layout.rightMargin: 24
-                color: "white"
+                text: page.statusText  // Q-11
+                color: page.statusColor
                 wrapMode: Text.WordWrap
                 font.pixelSize: 14
             }

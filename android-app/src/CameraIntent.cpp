@@ -9,23 +9,29 @@
 #include <jni.h>
 #endif
 
-CameraIntent *CameraIntent::s_instance = nullptr;
+std::atomic<CameraIntent *> CameraIntent::s_instance{nullptr};
 
 CameraIntent::CameraIntent(QObject *parent)
     : QObject(parent)
 {
-    s_instance = this;
+    // C-D01: enforce singleton invariant — exchange wymaga że poprzednia wartość była null.
+    CameraIntent *expected = nullptr;
+    if (!s_instance.compare_exchange_strong(expected, this, std::memory_order_release)) {
+        qFatal("CameraIntent: druga instancja konstruowana podczas gdy poprzednia żyje (s_instance=%p). "
+               "JNI callbacks dostają tylko jeden cel — wieloinstancyjność jest błędem programisty.",
+               expected);
+    }
 }
 
 CameraIntent::~CameraIntent()
 {
-    if (s_instance == this)
-        s_instance = nullptr;
+    CameraIntent *expected = this;
+    s_instance.compare_exchange_strong(expected, nullptr, std::memory_order_release);
 }
 
 CameraIntent *CameraIntent::instance()
 {
-    return s_instance;
+    return s_instance.load(std::memory_order_acquire);
 }
 
 void CameraIntent::launch()
