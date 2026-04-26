@@ -16,6 +16,11 @@ Page {
     property string currentListRid: ""  // Q-05
 
     readonly property int pageSize: 50
+    // Q-07: cap ListModel — przy 1870 eksponatach * ~30KB base64 thumb = ~55MB
+    // bez cap. Cap 500 trzyma ~15MB, prune najstarszych przy append.
+    // Trade-off: scroll w gore poza buffer = brak items (ale typowy use case
+    // to forward scrolling do znalezienia konkretnego, wiec OK).
+    readonly property int maxItems: 500
 
     ListModel { id: itemsModel }
 
@@ -41,6 +46,10 @@ Page {
             })
             if (mapped.length > 0) {
                 itemsModel.append(mapped)
+                // Q-07: prune najstarszych przy przekroczeniu cap
+                if (itemsModel.count > page.maxItems) {
+                    itemsModel.remove(0, itemsModel.count - page.maxItems)
+                }
             }
         }
         function onExhibitListError(requestId, msg) {
