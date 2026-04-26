@@ -6,16 +6,19 @@ Page {
     id: page
     title: "Ustawienia"
     property bool checking: false
+    property string currentHealthRid: ""  // Q-05
 
     Connections {
         target: apiClient
-        function onHealthOk(info) {
+        function onHealthOk(requestId, info) {
+            if (requestId !== page.currentHealthRid) return  // Q-05
             page.checking = false
             statusLabel.text = "✓ API " + info.version + " • baza: " + info.database
                 + " (" + info.exhibits_count + " eksp.)"
             statusLabel.color = "#2ecc40"
         }
-        function onHealthError(msg) {
+        function onHealthError(requestId, msg) {
+            if (requestId !== page.currentHealthRid) return  // Q-05
             page.checking = false
             statusLabel.text = "✗ " + msg
             statusLabel.color = "#ff4136"
@@ -137,7 +140,7 @@ Page {
                     page.checking = true
                     statusLabel.text = "Sprawdzam…"
                     statusLabel.color = "white"
-                    apiClient.checkHealth()
+                    page.currentHealthRid = apiClient.checkHealth()  // Q-05
                 }
                 contentItem: RowLayout {
                     spacing: 6

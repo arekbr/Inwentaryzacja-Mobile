@@ -10,6 +10,7 @@ Page {
     property var artefakt: ({})
     property string photoPath: ""
     property bool saving: false
+    property string currentSaveRid: ""  // Q-05
 
     property string fName: artefakt.name || ""
     property string fType: artefakt.type || "Inne"
@@ -26,13 +27,15 @@ Page {
 
     Connections {
         target: apiClient
-        function onExhibitSaved(id, photosCount) {
+        function onExhibitSaved(requestId, id, photosCount) {
+            if (requestId !== page.currentSaveRid) return  // Q-05
             page.saving = false
             statusLabel.text = "✓ Zapisano (id: " + id.substr(0, 8) + "…)"
             statusLabel.color = "#2ecc40"
             returnTimer.start()
         }
-        function onExhibitError(msg) {
+        function onExhibitError(requestId, msg) {
+            if (requestId !== page.currentSaveRid) return  // Q-05
             page.saving = false
             statusLabel.text = "✗ " + msg
             statusLabel.color = "#ff4136"
@@ -223,7 +226,7 @@ Page {
                         status: page.fStatus, storage_place: page.fStorage,
                         description: page.fDescription, has_original_packaging: page.fPacking
                     }
-                    apiClient.saveExhibit(payload, page.photoPath)
+                    page.currentSaveRid = apiClient.saveExhibit(payload, page.photoPath)  // Q-05
                 }
             }
         }

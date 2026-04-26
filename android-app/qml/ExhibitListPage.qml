@@ -13,6 +13,7 @@ Page {
     property int totalCount: 0
     property bool hasMore: true
     property string errorMsg: ""
+    property string currentListRid: ""  // Q-05
 
     readonly property int pageSize: 50
 
@@ -21,16 +22,14 @@ Page {
     Connections {
         target: apiClient
         enabled: page.StackView.status === StackView.Active
-        function onExhibitListResult(info) {
+        function onExhibitListResult(requestId, info) {
+            if (requestId !== page.currentListRid) return  // Q-05
             page.loading = false
             page.errorMsg = ""
             page.totalCount = info.total
             page.currentPage = info.page
             page.hasMore = info.has_more
 
-            // Q-01: rola "device_model" zamiast "model" — unikamy kolizji z
-            // delegate context keyword "model".
-            // Q-D02 perf: batch append jako tablica (1 modelChanged signal vs 50).
             const mapped = (info.results || []).map(function (r) {
                 return {
                     exhibit_id: r.id,
@@ -44,7 +43,8 @@ Page {
                 itemsModel.append(mapped)
             }
         }
-        function onExhibitListError(msg) {
+        function onExhibitListError(requestId, msg) {
+            if (requestId !== page.currentListRid) return  // Q-05
             page.loading = false
             page.errorMsg = msg
         }
@@ -53,7 +53,7 @@ Page {
     function loadNextPage() {
         if (page.loading || !page.hasMore) return
         page.loading = true
-        apiClient.listExhibits(page.currentPage + 1, page.pageSize)
+        page.currentListRid = apiClient.listExhibits(page.currentPage + 1, page.pageSize)  // Q-05
     }
 
     Component.onCompleted: loadNextPage()

@@ -10,6 +10,7 @@ Page {
     property bool searching: false
     property var results: []
     property int indexSize: 0
+    property string currentSimilarRid: ""  // Q-05
 
     Connections {
         // Q-04: gate na aktywną stronę — CameraIntent singleton.
@@ -27,7 +28,8 @@ Page {
     Connections {
         target: apiClient
         enabled: page.StackView.status === StackView.Active
-        function onSimilarResult(list, size) {
+        function onSimilarResult(requestId, list, size) {
+            if (requestId !== page.currentSimilarRid) return  // Q-05
             page.searching = false
             page.results = list
             page.indexSize = size
@@ -35,7 +37,8 @@ Page {
                 ? "Brak wyników (index: " + size + ")"
                 : "Znaleziono " + list.length + " z " + size
         }
-        function onSimilarError(msg) {
+        function onSimilarError(requestId, msg) {
+            if (requestId !== page.currentSimilarRid) return  // Q-05
             page.searching = false
             page.results = []
             statusLabel.text = "✗ " + msg
@@ -123,7 +126,7 @@ Page {
                         page.searching = true
                         statusLabel.text = "CLIP embedding + LanceDB search…"
                         statusLabel.color = "white"
-                        apiClient.findSimilar(page.capturedPath, 5)
+                        page.currentSimilarRid = apiClient.findSimilar(page.capturedPath, 5)  // Q-05
                     }
                 }
             }

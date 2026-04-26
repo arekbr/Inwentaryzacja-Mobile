@@ -15,8 +15,17 @@
 #include <QSslError>
 #include <QUrl>
 #include <QUrlQuery>
+#include <QUuid>
 
 #include <memory>
+
+namespace {
+// Q-05: krotki UUID (8 znakow) dla logow czytelnosci, kolizja
+// w ramach 1 user session praktycznie 0.
+QString newRequestId() {
+    return QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
+}
+}
 
 using namespace std::chrono_literals;
 
@@ -160,35 +169,34 @@ QString ApiClient::formatNetworkError(QNetworkReply *reply)  // C-D09: nie-stati
     }
 }
 
-void ApiClient::checkHealth()
+QString ApiClient::checkHealth()
 {
+    const QString rid = newRequestId();  // Q-05
     const QUrl url(m_settings->apiUrl() + QStringLiteral("/health"));
     if (!url.isValid() || m_settings->apiUrl().isEmpty()) {
-        // C-D11: queued — caller (QML page) moze byc destroyed miedzy
-        // wywolaniem checkHealth() a obsluga sygnalu. Sync emit by sie crash'nal.
         QMetaObject::invokeMethod(this,
-            [this]() { emit healthError(QStringLiteral("Brak adresu backendu — wpisz URL w Ustawieniach")); },
+            [this, rid]() { emit healthError(rid, QStringLiteral("Brak adresu backendu — wpisz URL w Ustawieniach")); },
             Qt::QueuedConnection);
-        return;
+        return rid;
     }
 
     QNetworkRequest req = prepareRequest(QStringLiteral("/health"), 5s, /*withAuth*/false);
     QNetworkReply *reply = m_nam->get(req);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, rid]() {
         if (reply->error() != QNetworkReply::NoError) {
-            emit healthError(formatNetworkError(reply));
+            emit healthError(rid, formatNetworkError(reply));
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-            // L-04: walidacja — bez tego malformed JSON da puste {}.
             if (doc.isNull() || !doc.isObject()) {
-                emit healthError(QStringLiteral("Niepoprawna odpowiedź serwera (JSON)"));
+                emit healthError(rid, QStringLiteral("Niepoprawna odpowiedź serwera (JSON)"));
             } else {
-                emit healthOk(doc.object().toVariantMap());
+                emit healthOk(rid, doc.object().toVariantMap());
             }
         }
         reply->deleteLater();
     });
+    return rid;
 }
 
 void ApiClient::sendMultipartPost(const QString &endpoint,
@@ -230,42 +238,45 @@ void ApiClient::sendMultipartPost(const QString &endpoint,
     });
 }
 
-void ApiClient::identify(const QString &photoPath)
+QString ApiClient::identify(const QString &photoPath)
 {
-    qInfo() << "[ApiClient] identify" << photoPath;
+    const QString rid = newRequestId();  // Q-05
+    qInfo() << "[ApiClient] identify rid=" << rid << photoPath;
     const QString err = validatePhotoPath(photoPath);
     if (!err.isEmpty()) {
         QMetaObject::invokeMethod(this,
-            [this, err]() { emit identifyError(err); }, Qt::QueuedConnection);
-        return;
+            [this, rid, err]() { emit identifyError(rid, err); }, Qt::QueuedConnection);
+        return rid;
     }
     sendMultipartPost(
         QStringLiteral("/api/v1/identify"),
         photoPath,
-        [this](QNetworkReply *reply) {
+        [this, rid](QNetworkReply *reply) {
             if (reply->error() != QNetworkReply::NoError) {
-                emit identifyError(formatNetworkError(reply));
+                emit identifyError(rid, formatNetworkError(reply));
                 return;
             }
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
             if (!doc.isObject()) {
-                emit identifyError(QStringLiteral("Zła odpowiedź (brak JSON object)"));
+                emit identifyError(rid, QStringLiteral("Zła odpowiedź (brak JSON object)"));
                 return;
             }
-            emit identifyResult(doc.object().toVariantMap());
+            emit identifyResult(rid, doc.object().toVariantMap());
         },
-        [this](const QString &msg) { emit identifyError(msg); },
-        45s);  // Claude Opus ~10-25s realistic, 45s timeout margin
+        [this, rid](const QString &msg) { emit identifyError(rid, msg); },
+        45s);
+    return rid;
 }
 
-void ApiClient::findSimilar(const QString &photoPath, int topK)
+QString ApiClient::findSimilar(const QString &photoPath, int topK)
 {
-    qInfo() << "[ApiClient] findSimilar" << photoPath << "top_k=" << topK;
+    const QString rid = newRequestId();  // Q-05
+    qInfo() << "[ApiClient] findSimilar rid=" << rid << photoPath << "top_k=" << topK;
     const QString verr = validatePhotoPath(photoPath);
     if (!verr.isEmpty()) {
         QMetaObject::invokeMethod(this,
-            [this, verr]() { emit similarError(verr); }, Qt::QueuedConnection);
-        return;
+            [this, rid, verr]() { emit similarError(rid, verr); }, Qt::QueuedConnection);
+        return rid;
     }
 
     // sendMultipartPost używa name="images" — dla /similar backend oczekuje name="image".
@@ -274,9 +285,9 @@ void ApiClient::findSimilar(const QString &photoPath, int topK)
     if (!file->open(QIODevice::ReadOnly)) {
         // C-D11: queued — patrz komentarz w checkHealth.
         QMetaObject::invokeMethod(this,
-            [this, photoPath]() { emit similarError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
+            [this, rid, photoPath]() { emit similarError(rid, QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
             Qt::QueuedConnection);
-        return;
+        return rid;
     }
 
     auto multi = std::make_unique<QHttpMultiPart>(QHttpMultiPart::FormDataType);
@@ -300,48 +311,51 @@ void ApiClient::findSimilar(const QString &photoPath, int topK)
     QNetworkReply *reply = m_nam->post(req, multi.get());
     multi.release()->setParent(reply);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, rid]() {
         if (reply->error() != QNetworkReply::NoError) {
-            emit similarError(formatNetworkError(reply));
+            emit similarError(rid, formatNetworkError(reply));
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-            // L-04: walidacja — bez tego malformed response by zwrócił pustą listę.
             if (doc.isNull() || !doc.isObject()) {
-                emit similarError(QStringLiteral("Niepoprawna odpowiedź serwera (JSON)"));
+                emit similarError(rid, QStringLiteral("Niepoprawna odpowiedź serwera (JSON)"));
             } else {
                 const QJsonObject obj = doc.object();
                 const QVariantList list = obj.value("results").toArray().toVariantList();
-                emit similarResult(list, obj.value("index_size").toInt());
+                emit similarResult(rid, list, obj.value("index_size").toInt());
             }
         }
         reply->deleteLater();
     });
+    return rid;
 }
 
-void ApiClient::getExhibit(const QString &exhibitId)
+QString ApiClient::getExhibit(const QString &exhibitId)
 {
-    qInfo() << "[ApiClient] getExhibit" << exhibitId;
+    const QString rid = newRequestId();  // Q-05
+    qInfo() << "[ApiClient] getExhibit rid=" << rid << exhibitId;
     QNetworkRequest req = prepareRequest(
         QStringLiteral("/api/v1/exhibits/") + exhibitId, 10s);
     QNetworkReply *reply = m_nam->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, exhibitId]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, rid]() {
         if (reply->error() != QNetworkReply::NoError) {
-            emit exhibitDetailError(formatNetworkError(reply), exhibitId);
+            emit exhibitDetailError(rid, formatNetworkError(reply));
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
             if (!doc.isObject()) {
-                emit exhibitDetailError(QStringLiteral("Zła odpowiedź"), exhibitId);
+                emit exhibitDetailError(rid, QStringLiteral("Zła odpowiedź"));
             } else {
-                emit exhibitDetail(doc.object().toVariantMap());
+                emit exhibitDetail(rid, doc.object().toVariantMap());
             }
         }
         reply->deleteLater();
     });
+    return rid;
 }
 
-void ApiClient::listExhibits(int page, int perPage)
+QString ApiClient::listExhibits(int page, int perPage)
 {
-    qInfo() << "[ApiClient] listExhibits page=" << page << "per_page=" << perPage;
+    const QString rid = newRequestId();  // Q-05
+    qInfo() << "[ApiClient] listExhibits rid=" << rid << "page=" << page << "per_page=" << perPage;
     QNetworkRequest req = prepareRequest(QStringLiteral("/api/v1/exhibits"), 15s);
     QUrl url = req.url();
     QUrlQuery q;
@@ -351,29 +365,31 @@ void ApiClient::listExhibits(int page, int perPage)
     req.setUrl(url);
 
     QNetworkReply *reply = m_nam->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, rid]() {
         if (reply->error() != QNetworkReply::NoError) {
-            emit exhibitListError(formatNetworkError(reply));
+            emit exhibitListError(rid, formatNetworkError(reply));
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
             if (!doc.isObject()) {
-                emit exhibitListError(QStringLiteral("Zła odpowiedź"));
+                emit exhibitListError(rid, QStringLiteral("Zła odpowiedź"));
             } else {
-                emit exhibitListResult(doc.object().toVariantMap());
+                emit exhibitListResult(rid, doc.object().toVariantMap());
             }
         }
         reply->deleteLater();
     });
+    return rid;
 }
 
-void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath)
+QString ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath)
 {
-    qInfo() << "[ApiClient] saveExhibit" << payload.value("name") << "photo:" << photoPath;
+    const QString rid = newRequestId();  // Q-05
+    qInfo() << "[ApiClient] saveExhibit rid=" << rid << payload.value("name") << "photo:" << photoPath;
     const QString verr = validatePhotoPath(photoPath);
     if (!verr.isEmpty()) {
         QMetaObject::invokeMethod(this,
-            [this, verr]() { emit exhibitError(verr); }, Qt::QueuedConnection);
-        return;
+            [this, rid, verr]() { emit exhibitError(rid, verr); }, Qt::QueuedConnection);
+        return rid;
     }
 
     // C-D02: multipart zamiast base64-in-JSON. Plik jest streamowany przez Qt
@@ -382,9 +398,9 @@ void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath
     auto file = std::make_unique<QFile>(photoPath);
     if (!file->open(QIODevice::ReadOnly)) {
         QMetaObject::invokeMethod(this,
-            [this, photoPath]() { emit exhibitError(QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
+            [this, rid, photoPath]() { emit exhibitError(rid, QStringLiteral("Nie mogę otworzyć zdjęcia: ") + photoPath); },
             Qt::QueuedConnection);
-        return;
+        return rid;
     }
 
     auto multi = std::make_unique<QHttpMultiPart>(QHttpMultiPart::FormDataType);
@@ -425,19 +441,20 @@ void ApiClient::saveExhibit(const QVariantMap &payload, const QString &photoPath
     QNetworkReply *reply = m_nam->post(req, multi.get());
     multi.release()->setParent(reply);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, rid]() {
         if (reply->error() != QNetworkReply::NoError) {
-            emit exhibitError(formatNetworkError(reply));
+            emit exhibitError(rid, formatNetworkError(reply));
         } else {
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
             if (!doc.isObject()) {
-                emit exhibitError(QStringLiteral("Zła odpowiedź serwera"));
+                emit exhibitError(rid, QStringLiteral("Zła odpowiedź serwera"));
             } else {
                 const QJsonObject obj = doc.object();
-                emit exhibitSaved(obj.value("id").toString(),
+                emit exhibitSaved(rid, obj.value("id").toString(),
                                   obj.value("photos_count").toInt());
             }
         }
         reply->deleteLater();
     });
+    return rid;
 }

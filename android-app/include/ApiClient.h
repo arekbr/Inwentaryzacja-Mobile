@@ -23,56 +23,63 @@ class ApiClient : public QObject
 public:
     explicit ApiClient(AppSettings *settings, QObject *parent = nullptr);
 
+    /// Q-05 (full): KAZDY endpoint zwraca requestId (UUID). QML strona zapisuje go
+    /// w property `currentRequestId` i filtruje sygnaly: `if (requestId !== mine) return`.
+    /// Bez tego sygnal z requestu A moze trafic w strone B (cross-page leak)
+    /// albo w destroyed page (segfault potencjalny).
+
     /// Health probe — GET /health. Sprawdza czy API odpowiada.
-    Q_INVOKABLE void checkHealth();
+    Q_INVOKABLE QString checkHealth();
 
     /// POST /api/v1/identify — multipart z JPG. Wynik → identifyResult(artefakt).
-    Q_INVOKABLE void identify(const QString &photoPath);
+    Q_INVOKABLE QString identify(const QString &photoPath);
 
     /// POST /api/v1/exhibits — JSON z polami Artefakt + base64 zdjęcia.
     /// @param payload mapa pól (name, type, vendor, model, ...)
     /// @param photoPath ścieżka do JPG (odczytany i zakodowany do base64)
-    Q_INVOKABLE void saveExhibit(const QVariantMap &payload, const QString &photoPath);
+    Q_INVOKABLE QString saveExhibit(const QVariantMap &payload, const QString &photoPath);
 
     /// POST /api/v1/similar?top_k=N — multipart z JPG. Wynik → similarResult(list).
-    Q_INVOKABLE void findSimilar(const QString &photoPath, int topK = 5);
+    Q_INVOKABLE QString findSimilar(const QString &photoPath, int topK = 5);
 
     /// GET /api/v1/exhibits/{id} — pełny eksponat + pierwsze zdjęcie 800px base64.
-    Q_INVOKABLE void getExhibit(const QString &exhibitId);
+    Q_INVOKABLE QString getExhibit(const QString &exhibitId);
 
     /// GET /api/v1/exhibits?page=N&per_page=M — paginowana lista alfabetycznie.
-    Q_INVOKABLE void listExhibits(int page = 1, int perPage = 50);
+    Q_INVOKABLE QString listExhibits(int page = 1, int perPage = 50);
 
 signals:
+    /// @param requestId UUID z metody zwracajcego ten request (Q-05)
     /// @param info map: {version, database, exhibits_count, clip_index_size, mock_identify, status}
-    void healthOk(const QVariantMap &info);
-    void healthError(const QString &message);
+    void healthOk(const QString &requestId, const QVariantMap &info);
+    void healthError(const QString &requestId, const QString &message);
 
-    void identifyResult(const QVariantMap &artefakt);
-    void identifyError(const QString &message);
+    void identifyResult(const QString &requestId, const QVariantMap &artefakt);
+    void identifyError(const QString &requestId, const QString &message);
 
-    void exhibitSaved(const QString &id, int photosCount);
-    void exhibitError(const QString &message);
+    void exhibitSaved(const QString &requestId, const QString &id, int photosCount);
+    void exhibitError(const QString &requestId, const QString &message);
 
     /// @param results lista map: {exhibit_id, name, vendor, model, distance, thumbnail_b64}
     /// @param indexSize liczba wszystkich eksponatów w LanceDB (informacyjnie)
-    void similarResult(const QVariantList &results, int indexSize);
-    void similarError(const QString &message);
+    void similarResult(const QString &requestId, const QVariantList &results, int indexSize);
+    void similarError(const QString &requestId, const QString &message);
 
-    void exhibitDetail(const QVariantMap &detail);
-    /// Q-05: drugi arg `exhibitId` żeby strona mogła filtrować — bez tego
-    /// error z requestu A surfacuje na stronie B (cross-page leak).
-    void exhibitDetailError(const QString &message, const QString &exhibitId);
+    void exhibitDetail(const QString &requestId, const QVariantMap &detail);
+    /// Q-05 (full): drugi arg byl `exhibitId` (narrow-filter workaround) — teraz zastapiony
+    /// przez requestId, ktory dziala uniwersalnie i wszedzie identycznie.
+    void exhibitDetailError(const QString &requestId, const QString &message);
 
     /// @param page page number (1-based) — przydatne przy infinite scrollu
     /// @param info {results, total, page, per_page, has_more}
-    void exhibitListResult(const QVariantMap &info);
-    void exhibitListError(const QString &message);
+    void exhibitListResult(const QString &requestId, const QVariantMap &info);
+    void exhibitListError(const QString &requestId, const QString &message);
 
     /// C-D09 wariant A: emitted gdy QUALSIWIEK request dostal 401.
     /// Token API jest sessional na Androidzie (nie persystuje przez kill — security
     /// tier-1.5 decision), wiec po restart user musi go wpisac ponownie.
     /// Glowny QML page lapie ten sygnal i kieruje usera do Ustawien.
+    /// BEZ requestId — to global notification, nie per-request.
     void tokenRequired();
 
 private:
