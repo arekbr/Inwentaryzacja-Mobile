@@ -95,7 +95,7 @@ ApplicationWindow {
         Behavior on opacity { NumberAnimation { duration: 200 } }
         Label {
             anchors.centerIn: parent
-            text: "Token wygasł — wpisz ponownie w Ustawieniach"
+            text: "Token niepoprawny — wpisz ponownie w Ustawieniach"
             color: "white"
             font.pixelSize: 14
             font.bold: true
