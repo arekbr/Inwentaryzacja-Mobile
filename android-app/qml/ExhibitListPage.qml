@@ -69,9 +69,11 @@ Page {
             color: "#1a1a1a"
 
             RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors {
+                    fill: parent
+                    leftMargin: 12
+                    rightMargin: 12
+                }
                 spacing: 8
 
                 Label {

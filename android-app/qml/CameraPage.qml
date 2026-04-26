@@ -92,9 +92,11 @@ Page {
             }
 
             Rectangle {
-                anchors.bottom: parent.bottom
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottomMargin: 16
+                anchors {
+                    bottom: parent.bottom
+                    horizontalCenter: parent.horizontalCenter
+                    bottomMargin: 16
+                }
                 width: Math.min(parent.width - 32, statusLabel.implicitWidth + 32)
                 height: statusLabel.implicitHeight + 16
                 color: "#A0000000"
