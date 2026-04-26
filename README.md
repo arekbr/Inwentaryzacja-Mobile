@@ -28,7 +28,7 @@ Plus: gdy widzę coś znajomego ale nie pewnego — "znajdź podobne" → galeri
 
 **Apka Qt:** Camera Intent (Pixel HDR+/Night Sight przez JNI, NIE QtMultimedia), formularz z wynikami AI, lista podobnych z miniaturami, przeglądanie bazy.
 
-**Backend FastAPI:** orkiestruje wywołania Claude, oblicza CLIP embeddingi, szuka podobnych w LanceDB, zapisuje do MariaDB. Reużywa `Artefakt` Pydantic model z [muzeum-inwentarz](https://github.com/arekbr/muzeum-inwentarz) (offline AI pipeline) — jedno źródło prawdy schematu.
+**Backend FastAPI:** orkiestruje wywołania Claude, oblicza CLIP embeddingi, szuka podobnych w LanceDB, zapisuje do MariaDB. Reużywa `Artefakt` Pydantic model z [arekbr/Inwentaryzacja](https://github.com/arekbr/Inwentaryzacja)  (offline AI pipeline) — jedno źródło prawdy schematu.
 
 **Baza:** ta sama `zbiory` co desktop. Zmiany w mobile widać w desktopie i odwrotnie.
 
