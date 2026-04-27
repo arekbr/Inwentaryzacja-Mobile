@@ -1,10 +1,14 @@
 #include "CameraIntent.h"
 
 #include <QDebug>
+#include <QTimer>
 
 #ifdef Q_OS_ANDROID
 #include <QCoreApplication>
+#include <QGuiApplication>
 #include <QJniObject>
+#include <QQuickWindow>
+#include <QWindow>
 #include <QtCore/qcoreapplication_platform.h>
 #include <jni.h>
 #endif
@@ -71,9 +75,25 @@ Java_com_bronkibrothers_inwentaryzacja_mobile_MainActivity_nativeOnPhotoCaptured
     const QString qpath = jstringToQString(env, path);
     qInfo() << "[CameraIntent] photo captured:" << qpath;
     if (auto *inst = CameraIntent::instance()) {
+        // Pixel 10 Pro / Android 16: po powrocie z Camera Intent Android niszczy
+        // QtSurfaceView. EGL surface jest jeszcze nieodtworzony gdy nativeOnPhotoCaptured
+        // przychodzi z onActivityResult — Image próbuje renderować do martwej powierzchni
+        // (BufferQueue abandoned, eglSwapBuffers 300d), pierwsza klatka nigdy nie dociera
+        // do screen. Workaround: opóźnij emit photoCaptured + force releaseResources()
+        // na wszystkich QQuickWindow żeby Qt świeżo skonstruował EGL surface.
         QMetaObject::invokeMethod(
             inst,
-            [inst, qpath]() { emit inst->photoCaptured(qpath); },
+            [inst, qpath]() {
+                for (QWindow *w : QGuiApplication::topLevelWindows()) {
+                    if (auto *qw = qobject_cast<QQuickWindow *>(w)) {
+                        qw->releaseResources();
+                        qw->update();
+                    }
+                }
+                QTimer::singleShot(400, inst, [inst, qpath]() {
+                    emit inst->photoCaptured(qpath);
+                });
+            },
             Qt::QueuedConnection);
     }
 }
