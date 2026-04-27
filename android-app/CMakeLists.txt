@@ -58,4 +58,15 @@ if(ANDROID)
         QT_ANDROID_VERSION_CODE 1
         QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
     )
+
+    # Release signing — auto-włącz gdy keystore env-var ustawione przez build-release-aab.sh.
+    # androiddeployqt korzysta z QT_ANDROID_KEYSTORE_PATH/ALIAS/STORE_PASS/KEY_PASS env-varów,
+    # ale TYLKO gdy CMake zna QT_ANDROID_SIGN_AAB / QT_ANDROID_SIGN_APK = ON.
+    if(DEFINED ENV{QT_ANDROID_KEYSTORE_PATH})
+        message(STATUS "Android signing: enabled (keystore env detected)")
+        set_target_properties(InwentaryzacjaMobile PROPERTIES
+            QT_ANDROID_SIGN_AAB ON
+            QT_ANDROID_SIGN_APK ON
+        )
+    endif()
 endif()

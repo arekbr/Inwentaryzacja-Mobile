@@ -42,14 +42,13 @@ export QT_ANDROID_KEYSTORE_ALIAS="$ALIAS"
 export QT_ANDROID_KEYSTORE_STORE_PASS="$STORE_PASS"
 export QT_ANDROID_KEYSTORE_KEY_PASS="$KEY_PASS"
 
-# Configure (Release type)
-if [[ ! -d "$BUILD_DIR" ]]; then
-    "$QT_ROOT/android_arm64_v8a/bin/qt-cmake" \
-        -S "$APP_DIR" -B "$BUILD_DIR" \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DQT_HOST_PATH="$QT_ROOT/gcc_64"
-fi
+# Configure (Release type) — re-configure ZAWSZE, bo CMake musi zobaczyć
+# QT_ANDROID_KEYSTORE_PATH env var (auto-włącza QT_ANDROID_SIGN_AAB w CMakeLists.txt)
+"$QT_ROOT/android_arm64_v8a/bin/qt-cmake" \
+    -S "$APP_DIR" -B "$BUILD_DIR" \
+    -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DQT_HOST_PATH="$QT_ROOT/gcc_64"
 
 # Build signed AAB
 echo "=== Building signed AAB (CMake target 'aab') ==="
