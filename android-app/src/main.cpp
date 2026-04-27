@@ -9,6 +9,17 @@
 
 int main(int argc, char *argv[])
 {
+    // Pixel 10 Pro / Android 16: po powrocie z Camera Intent system niszczy
+    // Qt EGL surface (BufferQueue abandoned → "QRhiGles2: Failed to make
+    // context current"). Threaded RHI/GLES2 SceneGraph trzyma stale ref do
+    // destroyed surface i rysuje do martwej powierzchni — Image renderuje
+    // się jako pustka, mimo Image.Ready=true i poprawnego paintedSize.
+    // Workaround: basic render loop (single-threaded, CPU-driven) toleruje
+    // surface tear-down i re-creates context przy następnym paint event.
+    // Trade-off: drobne spadki FPS w animacjach — niezauważalne dla apki
+    // z formularzami i statycznymi obrazami.
+    qputenv("QSG_RENDER_LOOP", "basic");
+
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName("Inwentaryzacja Mobile");
     QGuiApplication::setOrganizationName("bronkibrothers");
