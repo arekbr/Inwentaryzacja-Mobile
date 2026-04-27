@@ -1,0 +1,5 @@
+title: Inwentaryzacja Mobile
+description: Mobilna wersja katalogu muzeum retro-computingu
+theme: jekyll-theme-minimal
+markdown: kramdown
+permalink: /:title/
