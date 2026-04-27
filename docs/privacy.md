@@ -7,7 +7,7 @@ permalink: /privacy/
 
 **Aplikacja:** Inwentaryzacja Mobile (`com.bronkibrothers.inwentaryzacja.mobile`)
 **Ostatnia aktualizacja:** 2026-04-27
-**Administrator danych:** Arek Bronowicki, kontakt: `claude@bronowicki.com`
+**Administrator danych:** Arek Bronowicki, kontakt: `dev@bronkibrothers.com`
 
 ---
 
@@ -73,7 +73,7 @@ Backend jest hostowany w sieci prywatnej administratora (dostęp przez tunel Wir
 Jako użytkownik aplikacji masz prawo do:
 - **dostępu** do swoich danych (zdjęcia + metadata które wysłałeś) — kontakt z administratorem usuwa wątpliwości
 - **sprostowania** błędnych metadata — przez ekran „Edytuj eksponat" w aplikacji
-- **usunięcia** swoich wpisów z bazy — kontakt z administratorem (`claude@bronowicki.com`)
+- **usunięcia** swoich wpisów z bazy — kontakt z administratorem (`dev@bronkibrothers.com`)
 - **ograniczenia przetwarzania** — możesz przestać używać aplikacji w dowolnej chwili
 - **wniesienia skargi** do Prezesa Urzędu Ochrony Danych Osobowych (uodo.gov.pl)
 
@@ -96,7 +96,7 @@ W razie istotnych zmian, zaktualizowana wersja zostanie opublikowana w tym samym
 
 ## 11. Kontakt
 
-Pytania, sprzeciwy, żądania usunięcia: **`claude@bronowicki.com`**
+Pytania, sprzeciwy, żądania usunięcia: **`dev@bronkibrothers.com`**
 
 ---
 
