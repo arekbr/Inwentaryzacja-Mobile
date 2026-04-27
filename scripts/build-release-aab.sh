@@ -48,7 +48,9 @@ export QT_ANDROID_KEYSTORE_KEY_PASS="$KEY_PASS"
     -S "$APP_DIR" -B "$BUILD_DIR" \
     -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
-    -DQT_HOST_PATH="$QT_ROOT/gcc_64"
+    -DQT_HOST_PATH="$QT_ROOT/gcc_64" \
+    -DQT_ANDROID_SIGN_AAB=ON \
+    -DQT_ANDROID_SIGN_APK=ON
 
 # Build signed AAB
 echo "=== Building signed AAB (CMake target 'aab') ==="
