@@ -64,3 +64,9 @@ backend/embeddings/
 
 # prod-sim local secrets (never commit)
 infra/prod-sim/secrets/
+
+# === Android release signing (NEVER commit) ===
+*.jks
+*.keystore
+keystore.properties
+keystore.local
