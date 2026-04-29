@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api/api_provider.dart';
 import '../dictionaries/dict_item.dart';
 import '../dictionaries/dictionaries_provider.dart';
 import '../identify/artefakt.dart';
@@ -11,11 +13,13 @@ import 'exhibit_form_state.dart';
 class EditExhibitPage extends ConsumerStatefulWidget {
   final Artefakt artefakt;
   final String photoPath;
+  final Uint8List photoBytes;
 
   const EditExhibitPage({
     super.key,
     required this.artefakt,
     required this.photoPath,
+    required this.photoBytes,
   });
 
   @override
@@ -39,6 +43,7 @@ class _EditExhibitPageState extends ConsumerState<EditExhibitPage> {
   late bool _hasPackaging;
 
   String? _validationError;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -163,12 +168,49 @@ class _EditExhibitPageState extends ConsumerState<EditExhibitPage> {
     );
   }
 
-  void _onSave() {
+  Future<void> _onSave() async {
     final form = _currentForm();
     final err = form.validate();
     setState(() => _validationError = err);
     if (err != null) return;
-    _showInfo('Zapis do bazy w F8 — TODO. Walidacja OK.');
+
+    final client = ref.read(apiClientProvider);
+    if (client == null) {
+      _showInfo('Brak konfiguracji backendu.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final result = await client.saveExhibit(
+        fields: form.toMultipartFields(),
+        jpegBytes: widget.photoBytes,
+      );
+      if (!mounted) return;
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Zapisano'),
+          content: Text(
+              'Eksponat #${result.id.substring(0, 8)}… zapisany w bazie '
+              '(${result.photosCount} zdjęcie).'),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      _showInfo('Błąd zapisu: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -243,8 +285,18 @@ class _EditExhibitPageState extends ConsumerState<EditExhibitPage> {
             ],
             const SizedBox(height: 24),
             CupertinoButton.filled(
-              onPressed: _onSave,
-              child: const Text('Zapisz do bazy'),
+              onPressed: _saving ? null : _onSave,
+              child: _saving
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        CupertinoActivityIndicator(
+                            color: CupertinoColors.white),
+                        SizedBox(width: 10),
+                        Text('Zapisuję…'),
+                      ],
+                    )
+                  : const Text('Zapisz do bazy'),
             ),
             const SizedBox(height: 24),
           ],

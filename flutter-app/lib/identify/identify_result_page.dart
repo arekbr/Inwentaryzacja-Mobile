@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 
@@ -8,11 +9,13 @@ import 'artefakt.dart';
 class IdentifyResultPage extends StatelessWidget {
   final Artefakt artefakt;
   final String photoPath;
+  final Uint8List photoBytes;
 
   const IdentifyResultPage({
     super.key,
     required this.artefakt,
     required this.photoPath,
+    required this.photoBytes,
   });
 
   @override
@@ -101,6 +104,7 @@ class IdentifyResultPage extends StatelessWidget {
                   builder: (_) => EditExhibitPage(
                     artefakt: a,
                     photoPath: photoPath,
+                    photoBytes: photoBytes,
                   ),
                 ),
               ),
