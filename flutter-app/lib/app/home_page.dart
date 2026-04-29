@@ -56,6 +56,11 @@ class HomePage extends ConsumerWidget {
               ),
               const SizedBox(height: 20),
               _buildHealthPanel(context, healthAsync),
+              if (healthAsync.asData?.value.status ==
+                  HealthStatus.notConfigured) ...[
+                const SizedBox(height: 14),
+                _buildOnboarding(context),
+              ],
               const Spacer(),
               CupertinoButton.filled(
                 onPressed: healthAsync.asData?.value.isOk == true
@@ -157,6 +162,40 @@ class HomePage extends ConsumerWidget {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildOnboarding(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemBlue.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+            color: CupertinoColors.systemBlue.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(CupertinoIcons.info_circle,
+                  color: CupertinoColors.systemBlue, size: 20),
+              SizedBox(width: 8),
+              Text('Witaj w Inwentaryzacji',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: CupertinoColors.systemBlue)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Apka wymaga własnego self-hosted backendu (FastAPI + MariaDB + CLIP). '
+            'Wpisz URL i token w Ustawieniach. Pełna instrukcja konfiguracji w README projektu.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+        ],
       ),
     );
   }
