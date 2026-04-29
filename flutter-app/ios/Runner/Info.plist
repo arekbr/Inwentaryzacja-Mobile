@@ -4,6 +4,10 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Aparat służy do zrobienia zdjęcia eksponatu w celu identyfikacji AI.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Wybierz zdjęcie eksponatu z biblioteki, aby wysłać do identyfikacji AI.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
