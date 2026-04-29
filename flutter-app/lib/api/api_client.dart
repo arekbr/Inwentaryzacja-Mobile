@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../dictionaries/dict_item.dart';
 import '../identify/artefakt.dart';
+import '../similar/similar_result.dart';
 import 'health.dart';
 
 class ApiClient {
@@ -152,6 +153,26 @@ class ApiClient {
     }
     final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
     return Artefakt.fromJson(json);
+  }
+
+  Future<SimilarResponse> findSimilar(Uint8List jpegBytes,
+      {int topK = 5, String filename = 'photo.jpg'}) async {
+    final uri = _uri('/api/v1/similar').replace(queryParameters: {
+      'top_k': topK.toString(),
+    });
+    final req = http.MultipartRequest('POST', uri)
+      ..headers.addAll(_authHeaders())
+      ..files.add(http.MultipartFile.fromBytes('image', jpegBytes,
+          filename: filename));
+
+    final streamed = await _client.send(req).timeout(const Duration(seconds: 20));
+    final r = await http.Response.fromStream(streamed);
+
+    if (r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    return SimilarResponse.fromJson(json);
   }
 
   String _errorMessage(http.Response r) {
