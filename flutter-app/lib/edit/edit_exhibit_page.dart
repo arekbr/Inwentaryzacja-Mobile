@@ -211,7 +211,7 @@ class _EditExhibitPageState extends ConsumerState<EditExhibitPage> {
                   current: _status,
                   onPicked: (v) => setState(() => _status = v),
                 )),
-            _label('Miejsce przechowywania *'),
+            _label('Miejsce przechowywania'),
             _comboField(_storage, placesAsync, 'np. Magazyn 3, półka 2'),
             _label('Numer seryjny'),
             _text(_serial, 'opcjonalnie'),

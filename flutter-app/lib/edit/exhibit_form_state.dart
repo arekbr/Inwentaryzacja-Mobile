@@ -44,7 +44,7 @@ class ExhibitForm {
         revision: a.revision ?? '',
         productionYear: a.productionYear?.toString() ?? '',
         status: a.status,
-        storagePlace: '',
+        storagePlace: 'Nieokreślone',
         description: a.description,
         value: '',
         hasOriginalPackaging: a.hasOriginalPackaging,
@@ -57,7 +57,6 @@ class ExhibitForm {
     if (vendor.trim().isEmpty) return 'Producent jest wymagany.';
     if (model.trim().isEmpty) return 'Model jest wymagany.';
     if (status.trim().isEmpty) return 'Status jest wymagany.';
-    if (storagePlace.trim().isEmpty) return 'Miejsce przechowywania jest wymagane.';
     if (productionYear.trim().isNotEmpty) {
       final y = int.tryParse(productionYear.trim());
       if (y == null || y < 1900 || y > 2100) {
