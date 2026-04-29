@@ -71,8 +71,11 @@ class _CameraPageState extends ConsumerState<CameraPage> {
       if (!mounted) return;
       await Navigator.of(context).push(
         CupertinoPageRoute(
-          builder: (_) =>
-              IdentifyResultPage(artefakt: artefakt, photoPath: path),
+          builder: (_) => IdentifyResultPage(
+            artefakt: artefakt,
+            photoPath: path,
+            photoBytes: processed.bytes,
+          ),
         ),
       );
     } catch (e) {

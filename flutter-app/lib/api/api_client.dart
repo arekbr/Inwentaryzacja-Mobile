@@ -113,6 +113,30 @@ class ApiClient {
         .toList(growable: false);
   }
 
+  Future<({String id, int photosCount})> saveExhibit({
+    required Map<String, String> fields,
+    required Uint8List jpegBytes,
+    String filename = 'photo.jpg',
+  }) async {
+    final req = http.MultipartRequest('POST', _uri('/api/v1/exhibits/multipart'))
+      ..headers.addAll(_authHeaders())
+      ..fields.addAll(fields)
+      ..files.add(http.MultipartFile.fromBytes('photos', jpegBytes,
+          filename: filename));
+
+    final streamed = await _client.send(req).timeout(const Duration(seconds: 30));
+    final r = await http.Response.fromStream(streamed);
+
+    if (r.statusCode != 201 && r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    return (
+      id: json['id'] as String,
+      photosCount: (json['photos_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   Future<Artefakt> identify(Uint8List jpegBytes,
       {String filename = 'photo.jpg'}) async {
     final req = http.MultipartRequest('POST', _uri('/api/v1/identify'))

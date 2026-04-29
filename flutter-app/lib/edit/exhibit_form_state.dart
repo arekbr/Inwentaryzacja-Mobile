@@ -50,6 +50,27 @@ class ExhibitForm {
         hasOriginalPackaging: a.hasOriginalPackaging,
       );
 
+  Map<String, String> toMultipartFields() {
+    final m = <String, String>{
+      'name': name.trim(),
+      'type': type.trim(),
+      'vendor': vendor.trim(),
+      'model': model.trim(),
+      'status': status.trim(),
+      'storage_place': storagePlace.trim().isEmpty
+          ? 'Nieokreślone'
+          : storagePlace.trim(),
+      'has_original_packaging': hasOriginalPackaging.toString(),
+    };
+    if (serialNumber.trim().isNotEmpty) m['serial_number'] = serialNumber.trim();
+    if (partNumber.trim().isNotEmpty) m['part_number'] = partNumber.trim();
+    if (revision.trim().isNotEmpty) m['revision'] = revision.trim();
+    if (productionYear.trim().isNotEmpty) m['production_year'] = productionYear.trim();
+    if (description.trim().isNotEmpty) m['description'] = description.trim();
+    if (value.trim().isNotEmpty) m['value'] = value.trim();
+    return m;
+  }
+
   /// Walidacja zwraca null gdy OK, lub komunikat błędu.
   String? validate() {
     if (name.trim().isEmpty) return 'Nazwa jest wymagana.';
