@@ -1,23 +1,27 @@
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../api/api_provider.dart';
+import '../identify/identify_result_page.dart';
 import 'photo_utils.dart';
 
-class CameraPage extends StatefulWidget {
+class CameraPage extends ConsumerStatefulWidget {
   const CameraPage({super.key});
 
   @override
-  State<CameraPage> createState() => _CameraPageState();
+  ConsumerState<CameraPage> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage> {
+class _CameraPageState extends ConsumerState<CameraPage> {
   final _picker = ImagePicker();
   String? _path;
   ProcessedPhoto? _processed;
   String? _error;
   bool _busy = false;
+  bool _identifying = false;
 
   Future<void> _pick(ImageSource source) async {
     setState(() {
@@ -49,6 +53,36 @@ class _CameraPageState extends State<CameraPage> {
     }
   }
 
+  Future<void> _identify() async {
+    final processed = _processed;
+    final path = _path;
+    if (processed == null || path == null) return;
+    final client = ref.read(apiClientProvider);
+    if (client == null) {
+      setState(() => _error = 'Brak konfiguracji backendu.');
+      return;
+    }
+    setState(() {
+      _identifying = true;
+      _error = null;
+    });
+    try {
+      final artefakt = await client.identify(processed.bytes);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        CupertinoPageRoute(
+          builder: (_) =>
+              IdentifyResultPage(artefakt: artefakt, photoPath: path),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _identifying = false);
+    }
+  }
+
   String _formatSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
@@ -57,6 +91,7 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   Widget build(BuildContext context) {
+    final hasPhoto = _processed != null && _path != null;
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('Zdjęcie')),
       child: SafeArea(
@@ -112,23 +147,44 @@ class _CameraPageState extends State<CameraPage> {
                   Expanded(
                     child: CupertinoButton(
                       color: CupertinoColors.systemGrey4,
-                      onPressed:
-                          _busy ? null : () => _pick(ImageSource.gallery),
+                      onPressed: (_busy || _identifying)
+                          ? null
+                          : () => _pick(ImageSource.gallery),
                       child: const Text('Z biblioteki',
                           style: TextStyle(color: CupertinoColors.label)),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: CupertinoButton.filled(
-                      onPressed:
-                          _busy ? null : () => _pick(ImageSource.camera),
-                      child: const Text('Aparat'),
+                    child: CupertinoButton(
+                      color: CupertinoColors.systemGrey4,
+                      onPressed: (_busy || _identifying)
+                          ? null
+                          : () => _pick(ImageSource.camera),
+                      child: const Text('Aparat',
+                          style: TextStyle(color: CupertinoColors.label)),
                     ),
                   ),
                 ],
               ),
-              if (_busy) ...[
+              const SizedBox(height: 12),
+              CupertinoButton.filled(
+                onPressed: (hasPhoto && !_busy && !_identifying)
+                    ? _identify
+                    : null,
+                child: _identifying
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          CupertinoActivityIndicator(
+                              color: CupertinoColors.white),
+                          SizedBox(width: 10),
+                          Text('Wysyłam do AI…'),
+                        ],
+                      )
+                    : const Text('Zidentyfikuj'),
+              ),
+              if (_busy && !_identifying) ...[
                 const SizedBox(height: 12),
                 const Center(child: CupertinoActivityIndicator()),
               ],
