@@ -5,6 +5,7 @@ import '../api/api_provider.dart';
 import '../api/health.dart';
 import '../photo/camera_page.dart';
 import '../settings/settings_page.dart';
+import '../similar/similar_page.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -64,6 +65,18 @@ class HomePage extends ConsumerWidget {
                         )
                     : null,
                 child: const Text('Zrób zdjęcie eksponatu'),
+              ),
+              const SizedBox(height: 10),
+              CupertinoButton(
+                color: CupertinoColors.systemGrey5,
+                onPressed: healthAsync.asData?.value.isOk == true
+                    ? () => Navigator.of(context).push(
+                          CupertinoPageRoute(
+                              builder: (_) => const SimilarPage()),
+                        )
+                    : null,
+                child: const Text('Znajdź podobne',
+                    style: TextStyle(color: CupertinoColors.label)),
               ),
               const SizedBox(height: 8),
               CupertinoButton(
