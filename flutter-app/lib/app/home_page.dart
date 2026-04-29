@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_provider.dart';
 import '../api/health.dart';
+import '../photo/camera_page.dart';
 import '../settings/settings_page.dart';
 
 class HomePage extends ConsumerWidget {
@@ -56,6 +57,16 @@ class HomePage extends ConsumerWidget {
               _buildHealthPanel(context, healthAsync),
               const Spacer(),
               CupertinoButton.filled(
+                onPressed: healthAsync.asData?.value.isOk == true
+                    ? () => Navigator.of(context).push(
+                          CupertinoPageRoute(
+                              builder: (_) => const CameraPage()),
+                        )
+                    : null,
+                child: const Text('Zrób zdjęcie eksponatu'),
+              ),
+              const SizedBox(height: 8),
+              CupertinoButton(
                 onPressed: () => Navigator.of(context).push(
                   CupertinoPageRoute(builder: (_) => const SettingsPage()),
                 ),
