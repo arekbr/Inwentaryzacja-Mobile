@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../dictionaries/dict_item.dart';
 import '../identify/artefakt.dart';
 import 'health.dart';
 
@@ -96,6 +97,20 @@ class ApiClient {
         message: 'Weryfikacja tokenu nieudana: $e',
       );
     }
+  }
+
+  Future<List<DictItem>> fetchDictionary(String slug) async {
+    final r = await _client
+        .get(_uri('/api/v1/dictionaries/$slug'), headers: _authHeaders())
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final list = jsonDecode(utf8.decode(r.bodyBytes)) as List;
+    return list
+        .cast<Map<String, dynamic>>()
+        .map(DictItem.fromJson)
+        .toList(growable: false);
   }
 
   Future<Artefakt> identify(Uint8List jpegBytes,

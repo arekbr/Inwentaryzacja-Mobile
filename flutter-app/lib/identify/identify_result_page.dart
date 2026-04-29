@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 
+import '../edit/edit_exhibit_page.dart';
 import 'artefakt.dart';
 
 class IdentifyResultPage extends StatelessWidget {
@@ -94,10 +95,17 @@ class IdentifyResultPage extends StatelessWidget {
                     style: const TextStyle(fontSize: 13, height: 1.4)),
               ]),
             const SizedBox(height: 24),
-            CupertinoButton.filled(
-              onPressed: null,
-              child: const Text('Edytuj i zapisz (F7-F8 — TODO)'),
-            ),
+            Builder(builder: (ctx) => CupertinoButton.filled(
+              onPressed: () => Navigator.of(ctx).push(
+                CupertinoPageRoute(
+                  builder: (_) => EditExhibitPage(
+                    artefakt: a,
+                    photoPath: photoPath,
+                  ),
+                ),
+              ),
+              child: const Text('Edytuj i zapisz'),
+            )),
           ],
         ),
       ),
