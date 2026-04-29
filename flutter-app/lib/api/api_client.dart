@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../detail/exhibit_detail.dart';
 import '../dictionaries/dict_item.dart';
 import '../identify/artefakt.dart';
 import '../similar/similar_result.dart';
@@ -153,6 +154,17 @@ class ApiClient {
     }
     final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
     return Artefakt.fromJson(json);
+  }
+
+  Future<ExhibitDetail> getExhibit(String id) async {
+    final r = await _client
+        .get(_uri('/api/v1/exhibits/$id'), headers: _authHeaders())
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    return ExhibitDetail.fromJson(json);
   }
 
   Future<SimilarResponse> findSimilar(Uint8List jpegBytes,
