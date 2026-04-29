@@ -1,19 +1,39 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api/api_provider.dart';
+import '../api/health.dart';
 import '../settings/settings_page.dart';
-import '../settings/settings_provider.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
+  Color _statusColor(HealthStatus s) => switch (s) {
+        HealthStatus.ok => CupertinoColors.activeGreen,
+        HealthStatus.backendDown => CupertinoColors.destructiveRed,
+        HealthStatus.tokenInvalid => CupertinoColors.systemOrange,
+        HealthStatus.notConfigured => CupertinoColors.systemGrey,
+      };
+
+  String _statusLabel(HealthStatus s) => switch (s) {
+        HealthStatus.ok => 'OK',
+        HealthStatus.backendDown => 'Backend niedostępny',
+        HealthStatus.tokenInvalid => 'Token niepoprawny',
+        HealthStatus.notConfigured => 'Nieskonfigurowane',
+      };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settingsAsync = ref.watch(settingsProvider);
+    final healthAsync = ref.watch(healthProvider);
 
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Inwentaryzacja'),
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text('Inwentaryzacja'),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () => ref.invalidate(healthProvider),
+          child: const Icon(CupertinoIcons.refresh),
+        ),
       ),
       child: SafeArea(
         child: Padding(
@@ -28,30 +48,12 @@ class HomePage extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Flutter rewrite — etap F3',
-                style: TextStyle(fontSize: 14, color: CupertinoColors.systemGrey),
+                'Flutter rewrite — etap F4',
+                style: TextStyle(
+                    fontSize: 14, color: CupertinoColors.systemGrey),
               ),
-              const SizedBox(height: 24),
-              settingsAsync.when(
-                loading: () => const CupertinoActivityIndicator(),
-                error: (e, _) => Text('Błąd ustawień: $e'),
-                data: (s) => Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.systemGrey6.resolveFrom(context),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _row('Backend URL', s.apiUrl.isEmpty ? '— brak —' : s.apiUrl),
-                      const SizedBox(height: 6),
-                      _row('Token API',
-                          s.apiToken.isEmpty ? '— brak —' : '••• (${s.apiToken.length} zn.)'),
-                    ],
-                  ),
-                ),
-              ),
+              const SizedBox(height: 20),
+              _buildHealthPanel(context, healthAsync),
               const Spacer(),
               CupertinoButton.filled(
                 onPressed: () => Navigator.of(context).push(
@@ -66,19 +68,91 @@ class HomePage extends ConsumerWidget {
     );
   }
 
-  Widget _row(String label, String value) => Row(
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 13, color: CupertinoColors.systemGrey)),
-          ),
-          Expanded(
-            child: Text(value,
-                style: const TextStyle(fontSize: 14),
-                overflow: TextOverflow.ellipsis),
-          ),
-        ],
+  Widget _buildHealthPanel(
+      BuildContext context, AsyncValue<HealthInfo> healthAsync) {
+    final bg = CupertinoColors.systemGrey6.resolveFrom(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: healthAsync.when(
+        loading: () => const Row(
+          children: [
+            CupertinoActivityIndicator(),
+            SizedBox(width: 12),
+            Text('Sprawdzam backend…'),
+          ],
+        ),
+        error: (e, _) => Row(
+          children: [
+            const Icon(CupertinoIcons.exclamationmark_triangle,
+                color: CupertinoColors.destructiveRed),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Błąd: $e')),
+          ],
+        ),
+        data: (h) {
+          final color = _statusColor(h.status);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    _statusLabel(h.status),
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: color),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(h.message,
+                  style: const TextStyle(fontSize: 13, color: CupertinoColors.label)),
+              if (h.isOk) ...[
+                const SizedBox(height: 12),
+                _kv('Wersja', h.version ?? '?'),
+                _kv('Baza', h.database ?? '?'),
+                _kv('Eksponaty', '${h.exhibitsCount ?? '?'}'),
+                _kv('CLIP index', '${h.clipIndexSize ?? '?'}'),
+                if (h.mockIdentify == true)
+                  _kv('Tryb', 'MOCK identify (DEV)'),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _kv(String label, String value) => Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text(label,
+                  style: const TextStyle(
+                      fontSize: 12, color: CupertinoColors.systemGrey)),
+            ),
+            Expanded(
+              child: Text(value,
+                  style: const TextStyle(fontSize: 13),
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
       );
 }
