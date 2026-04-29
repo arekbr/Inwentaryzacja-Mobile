@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../api/api_provider.dart';
+import '../detail/exhibit_detail_page.dart';
 import '../photo/photo_utils.dart';
 import 'similar_result.dart';
 
@@ -167,7 +168,19 @@ class _SimilarPageState extends ConsumerState<SimilarPage> {
                     fontSize: 12, color: CupertinoColors.systemGrey),
               ),
               const SizedBox(height: 8),
-              for (final r in _response!.results) _ResultTile(result: r),
+              for (final r in _response!.results)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).push(
+                    CupertinoPageRoute(
+                      builder: (_) => ExhibitDetailPage(
+                        exhibitId: r.exhibitId,
+                        fallbackName: r.name,
+                      ),
+                    ),
+                  ),
+                  child: _ResultTile(result: r),
+                ),
             ],
           ],
         ),
