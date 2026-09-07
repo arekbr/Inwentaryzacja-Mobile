@@ -5,7 +5,7 @@ Mobilna apka (Qt 6 Android) do katalogowania eksponatów muzeum retro-computingu
 Siostrzana apka desktopowa: [arekbr/Inwentaryzacja](https://github.com/arekbr/Inwentaryzacja) — wspólna baza, wspólny model danych, ten sam projekt.
 
 ![Status](https://img.shields.io/badge/status-WIP%20active-orange)
-![Qt](https://img.shields.io/badge/Qt-6.9-green)
+![Qt](https://img.shields.io/badge/Qt-6.11-green)
 ![Android](https://img.shields.io/badge/Android-15+-blue)
 ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 
@@ -50,14 +50,14 @@ Plus: gdy widzę coś znajomego ale nie pewnego — "znajdź podobne" → galeri
 
 🔜 **Plan:**
 - Deploy backendu na hosting publiczny (do tej pory tylko dev lokalny: macOS + Linux)
-- AAB + Google Play Internal Testing (5 testerów)
+- ✅ Google Play: produkcja od 05.05.2026 (v0.1.0); v0.2.0 = targetSdk 36 (wymóg Play od 31.08.2026)
 - "Dopisz opis AI" — port flow z desktopowej v1.5 (Anthropic enrichment) na mobilkę
 
 ## Stack
 
 | Co | Wersja |
 |---|---|
-| Qt | 6.9.x (Android: arm64_v8a) |
+| Qt | 6.11.x (Android: arm64_v8a; targetSdk 36, minSdk 28) |
 | C++ | 17 |
 | Build | CMake + qt-cmake (Android wrapper) |
 | Backend | FastAPI 0.x + uvicorn + slowapi |
@@ -69,6 +69,9 @@ Plus: gdy widzę coś znajomego ale nie pewnego — "znajdź podobne" → galeri
 
 ## Build (CLI, bez Qt Creator)
 
+Wymagania: Qt 6.11.x (komponenty `Desktop` + `Android`), Android SDK z `platforms;android-36`,
+NDK **27.2.12479018** (r27c — Qt 6.10/6.11 nie wspiera r28+), JDK 21, CMake ≥ 3.21, Ninja.
+
 **Linux:**
 ```bash
 export ANDROID_HOME=~/Android/Sdk ANDROID_SDK_ROOT=~/Android/Sdk
@@ -76,8 +79,8 @@ export ANDROID_NDK_ROOT=~/Android/Sdk/ndk/27.2.12479018
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
 cd android-app
-~/Qt/6.9.3/android_arm64_v8a/bin/qt-cmake -S . -B build-android-arm64 -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug -DQT_HOST_PATH=$HOME/Qt/6.9.3/gcc_64
+~/Qt/6.11.2/android_arm64_v8a/bin/qt-cmake -S . -B build-android-arm64 -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug -DQT_HOST_PATH=$HOME/Qt/6.11.2/gcc_64
 cmake --build build-android-arm64 -j 4
 
 ~/Android/Sdk/platform-tools/adb install -r \
@@ -86,7 +89,11 @@ cmake --build build-android-arm64 -j 4
   -c android.intent.category.LAUNCHER 1
 ```
 
-Czas builda: ~1m30s, APK: ~75 MB. Na macOS (Apple Silicon) analogicznie z odpowiednim Qt build.
+**macOS (Apple Silicon):** to samo z `ANDROID_HOME=~/Library/Android/sdk`,
+`JAVA_HOME=$(/usr/libexec/java_home -v 21)` i `-DQT_HOST_PATH=$HOME/Qt/6.11.2/macos`.
+
+Czas builda: ~1m30s, APK: ~75 MB. Release AAB do Play: `./scripts/build-release-aab.sh`
+(patrz `docs/RELEASE.md`), weryfikacja przed uploadem: `./scripts/verify-aab.sh <plik.aab>`.
 
 ## Backend (lokalnie do dev)
 

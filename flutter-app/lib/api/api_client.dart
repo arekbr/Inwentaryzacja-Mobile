@@ -1,0 +1,217 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:http/http.dart' as http;
+
+import '../detail/exhibit_detail.dart';
+import '../dictionaries/dict_item.dart';
+import '../identify/artefakt.dart';
+import '../similar/similar_result.dart';
+import 'health.dart';
+
+class ApiClient {
+  ApiClient({required this.baseUrl, required this.token, http.Client? client})
+      : _client = client ?? http.Client();
+
+  final String baseUrl;
+  final String token;
+  final http.Client _client;
+
+  static const _timeout = Duration(seconds: 5);
+
+  Uri _uri(String path) => Uri.parse('$baseUrl$path');
+
+  Map<String, String> _authHeaders() => {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      };
+
+  Future<HealthInfo> checkHealth() async {
+    if (baseUrl.trim().isEmpty) {
+      return const HealthInfo(
+        status: HealthStatus.notConfigured,
+        message: 'Brak URL backendu — skonfiguruj w Ustawieniach.',
+      );
+    }
+    if (token.trim().isEmpty) {
+      return const HealthInfo(
+        status: HealthStatus.notConfigured,
+        message: 'Brak tokena API — skonfiguruj w Ustawieniach.',
+      );
+    }
+
+    Map<String, dynamic> healthJson;
+    try {
+      final r = await _client.get(_uri('/health')).timeout(_timeout);
+      if (r.statusCode != 200) {
+        return HealthInfo(
+          status: HealthStatus.backendDown,
+          message: 'Backend odpowiedział ${r.statusCode} na /health.',
+        );
+      }
+      healthJson = jsonDecode(r.body) as Map<String, dynamic>;
+    } on TimeoutException {
+      return const HealthInfo(
+        status: HealthStatus.backendDown,
+        message: 'Backend nie odpowiada (timeout 5 s).',
+      );
+    } catch (e) {
+      return HealthInfo(
+        status: HealthStatus.backendDown,
+        message: 'Błąd połączenia: $e',
+      );
+    }
+
+    try {
+      final r = await _client
+          .get(_uri('/api/v1/dictionaries/types'), headers: _authHeaders())
+          .timeout(_timeout);
+      if (r.statusCode == 200) {
+        return HealthInfo(
+          status: HealthStatus.ok,
+          message: 'Backend OK, token poprawny.',
+          version: healthJson['version'] as String?,
+          database: healthJson['database'] as String?,
+          exhibitsCount: (healthJson['exhibits_count'] as num?)?.toInt(),
+          clipIndexSize: (healthJson['clip_index_size'] as num?)?.toInt(),
+          mockIdentify: healthJson['mock_identify'] as bool?,
+        );
+      }
+      if (r.statusCode == 401 || r.statusCode == 403) {
+        return const HealthInfo(
+          status: HealthStatus.tokenInvalid,
+          message: 'Backend OK, ale token niepoprawny — sprawdź Ustawienia.',
+        );
+      }
+      return HealthInfo(
+        status: HealthStatus.tokenInvalid,
+        message: 'Weryfikacja tokenu zwróciła ${r.statusCode}.',
+      );
+    } on TimeoutException {
+      return const HealthInfo(
+        status: HealthStatus.tokenInvalid,
+        message: 'Weryfikacja tokenu — timeout.',
+      );
+    } catch (e) {
+      return HealthInfo(
+        status: HealthStatus.tokenInvalid,
+        message: 'Weryfikacja tokenu nieudana: $e',
+      );
+    }
+  }
+
+  Future<List<DictItem>> fetchDictionary(String slug) async {
+    final r = await _client
+        .get(_uri('/api/v1/dictionaries/$slug'), headers: _authHeaders())
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final list = jsonDecode(utf8.decode(r.bodyBytes)) as List;
+    return list
+        .cast<Map<String, dynamic>>()
+        .map(DictItem.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<({String id, int photosCount})> saveExhibit({
+    required Map<String, String> fields,
+    required Uint8List jpegBytes,
+    String filename = 'photo.jpg',
+  }) async {
+    final req = http.MultipartRequest('POST', _uri('/api/v1/exhibits/multipart'))
+      ..headers.addAll(_authHeaders())
+      ..fields.addAll(fields)
+      ..files.add(http.MultipartFile.fromBytes('photos', jpegBytes,
+          filename: filename));
+
+    final streamed = await _client.send(req).timeout(const Duration(seconds: 30));
+    final r = await http.Response.fromStream(streamed);
+
+    if (r.statusCode != 201 && r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    return (
+      id: json['id'] as String,
+      photosCount: (json['photos_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Future<Artefakt> identify(Uint8List jpegBytes,
+      {String filename = 'photo.jpg'}) async {
+    final req = http.MultipartRequest('POST', _uri('/api/v1/identify'))
+      ..headers.addAll(_authHeaders())
+      ..files.add(http.MultipartFile.fromBytes('images', jpegBytes,
+          filename: filename));
+
+    final streamed = await _client.send(req).timeout(const Duration(seconds: 45));
+    final r = await http.Response.fromStream(streamed);
+
+    if (r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    return Artefakt.fromJson(json);
+  }
+
+  Future<ExhibitDetail> getExhibit(String id) async {
+    final r = await _client
+        .get(_uri('/api/v1/exhibits/$id'), headers: _authHeaders())
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    return ExhibitDetail.fromJson(json);
+  }
+
+  Future<SimilarResponse> findSimilar(Uint8List jpegBytes,
+      {int topK = 5, String filename = 'photo.jpg'}) async {
+    final uri = _uri('/api/v1/similar').replace(queryParameters: {
+      'top_k': topK.toString(),
+    });
+    final req = http.MultipartRequest('POST', uri)
+      ..headers.addAll(_authHeaders())
+      ..files.add(http.MultipartFile.fromBytes('image', jpegBytes,
+          filename: filename));
+
+    final streamed = await _client.send(req).timeout(const Duration(seconds: 20));
+    final r = await http.Response.fromStream(streamed);
+
+    if (r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    return SimilarResponse.fromJson(json);
+  }
+
+  String _errorMessage(http.Response r) {
+    if (r.statusCode == 401 || r.statusCode == 403) {
+      return 'Token niepoprawny lub wygasły.';
+    }
+    if (r.statusCode == 413) return 'Zdjęcie zbyt duże dla backendu.';
+    if (r.statusCode == 429) return 'Limit zapytań osiągnięty — spróbuj za chwilę.';
+    if (r.statusCode == 502 || r.statusCode == 503) {
+      return 'AI niedostępne (HTTP ${r.statusCode}).';
+    }
+    try {
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      final detail = body['detail'];
+      if (detail is String && detail.isNotEmpty) return detail;
+      if (detail is List && detail.isNotEmpty) return detail.first.toString();
+    } catch (_) {}
+    return 'Błąd HTTP ${r.statusCode}';
+  }
+
+  void dispose() => _client.close();
+}
+
+class _ApiError implements Exception {
+  final int status;
+  final String message;
+  _ApiError(this.status, this.message);
+  @override
+  String toString() => message;
+}
