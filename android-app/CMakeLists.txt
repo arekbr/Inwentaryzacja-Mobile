@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(InwentaryzacjaMobile
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Mobilna apka Qt Android — katalogowanie eksponatów muzeum"
     LANGUAGES CXX
 )
@@ -66,10 +66,20 @@ if(ANDROID)
     math(EXPR ANDROID_VERSION_CODE "${GIT_COMMIT_COUNT} + 10")
     message(STATUS "Android versionCode: ${ANDROID_VERSION_CODE} (git commits: ${GIT_COMMIT_COUNT} + offset 10)")
 
+    # 16 KB page size — Play wymaga dla targetSdk >= 35 (odrzuca aktualizacje bez tego od 1.02.2027).
+    # NDK r27 NIE ustawia tego domyślnie (dopiero r28) — flagi jawne dla naszego .so.
+    target_link_options(InwentaryzacjaMobile PRIVATE
+        "-Wl,-z,max-page-size=16384"
+        "-Wl,-z,common-page-size=16384"
+    )
+
+    # targetSdk 36 (Android 16): Play wymaga dla KAŻDEJ aktualizacji od 31.08.2026 (przedłużenie do 1.11.2026).
+    # minSdk 28: dolna granica wspierana przez Qt 6.11 (Android 9). Wymaga Qt >= 6.10 (6.9 oficjalnie tylko do API 35).
     set_target_properties(InwentaryzacjaMobile PROPERTIES
         QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
-        QT_ANDROID_TARGET_SDK_VERSION 35
-        QT_ANDROID_MIN_SDK_VERSION 26
+        QT_ANDROID_COMPILE_SDK_VERSION 36
+        QT_ANDROID_TARGET_SDK_VERSION 36
+        QT_ANDROID_MIN_SDK_VERSION 28
         QT_ANDROID_VERSION_CODE ${ANDROID_VERSION_CODE}
         QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
     )
