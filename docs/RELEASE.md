@@ -21,6 +21,15 @@ chmod 600 ~/keystores/inwentaryzacja-mobile.jks
 Kopia haseł osobno od pliku keystore. 🔴 Bez hasła nie ma aktualizacji apki — jedyne wyjście to reset
 klucza przesyłania u Google (Play App Signing jest włączony, patrz niżej).
 
+### 1a. Historia kluczy przesyłania
+
+| Plik | Utworzony | Stan |
+|---|---|---|
+| `~/keystores/inwentaryzacja-mobile.jks` | 27.04.2026 | hasło utracone (nie było w managerze haseł) — **nieużywalny** |
+| `~/keystores/inwentaryzacja-mobile-2026.jks` | 07.09.2026 | hasło w `bw` (`inwentaryzacja-mobile-keystore`); certyfikat `upload-cert-2026.pem`; **wymaga zatwierdzenia resetu klucza przesyłania w Play Console** (Play App Signing → Certyfikat klucza przesyłania → Poproś o zresetowanie) |
+
+Lekcja: hasło keystore idzie do managera haseł **w tej samej minucie**, w której powstaje plik. Bez tego plik jest bezwartościowy.
+
 ### 2. Google Play App Signing (zalecane)
 
 Przy pierwszym uploadzie AAB do Play Console:

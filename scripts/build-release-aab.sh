@@ -19,7 +19,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="$REPO_ROOT/android-app"
 BUILD_DIR="$APP_DIR/build-android-release"
 
-KEYSTORE="${INW_KEYSTORE_PATH:-$HOME/keystores/inwentaryzacja-mobile.jks}"
+# Od 2026-09-07 klucz przesyłania = inwentaryzacja-mobile-2026.jks (poprzedni z 27.04.2026 — hasło utracone, reset u Google).
+KEYSTORE="${INW_KEYSTORE_PATH:-$HOME/keystores/inwentaryzacja-mobile-2026.jks}"
 ALIAS="${INW_KEYSTORE_ALIAS:-inwentaryzacja}"
 
 if [[ ! -f "$KEYSTORE" ]]; then
