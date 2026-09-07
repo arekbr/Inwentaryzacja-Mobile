@@ -13,7 +13,8 @@ READELF="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/$HOST/bin/llvm-
 RC=0
 
 echo "== 1. Podpis (jarsigner) =="
-if jarsigner -verify "$AAB" | tail -1 | grep -q "jar verified"; then
+# jarsigner przy certyfikacie self-signed kończy OSTRZEŻENIAMI po linii "jar verified." — szukaj w całym wyjściu, nie w ostatniej linii
+if jarsigner -verify "$AAB" 2>/dev/null | grep -q "jar verified"; then
     echo "   OK: jar verified"
 else
     echo "   ZLE: brak podpisu"; RC=1
