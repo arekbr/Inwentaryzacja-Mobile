@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Multimedia)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -46,16 +46,31 @@ target_link_libraries(InwentaryzacjaMobile PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Network
-    Qt6::Multimedia
 )
 
 # === Android-specific ===
 if(ANDROID)
+    # versionCode = liczba commitów + offset (monotonicznie rosnący).
+    # Offset 10 zostawia margines na pierwsze 9 ręcznych uploadów do Play (1..9 użyte historycznie).
+    execute_process(
+        COMMAND git rev-list --count HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_COMMIT_COUNT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE GIT_RC
+    )
+    if(NOT GIT_RC EQUAL 0 OR NOT GIT_COMMIT_COUNT MATCHES "^[0-9]+$")
+        message(WARNING "git rev-list failed (rc=${GIT_RC}), falling back to versionCode 100")
+        set(GIT_COMMIT_COUNT 90)
+    endif()
+    math(EXPR ANDROID_VERSION_CODE "${GIT_COMMIT_COUNT} + 10")
+    message(STATUS "Android versionCode: ${ANDROID_VERSION_CODE} (git commits: ${GIT_COMMIT_COUNT} + offset 10)")
+
     set_target_properties(InwentaryzacjaMobile PROPERTIES
         QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
         QT_ANDROID_TARGET_SDK_VERSION 35
         QT_ANDROID_MIN_SDK_VERSION 26
-        QT_ANDROID_VERSION_CODE 1
+        QT_ANDROID_VERSION_CODE ${ANDROID_VERSION_CODE}
         QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
     )
 
