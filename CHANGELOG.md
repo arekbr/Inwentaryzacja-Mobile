@@ -12,8 +12,27 @@ Wszystkie istotne zmiany w projekcie. Format: [Keep a Changelog](https://keepach
 
 ### TODO
 - Deploy backendu na hosting publiczny (K14)
-- AAB + Google Play Internal Testing (5 testerów, K15)
 - "Dopisz opis AI" — port flow z desktopowej v1.5 (K16)
+
+---
+
+## [0.2.0] — 2026-09-07 (targetSdk 36 / Qt 6.11)
+
+### Changed
+- `targetSdkVersion` 35 → **36** (Android 16) — wymóg Google Play dla aktualizacji od 31.08.2026
+- `minSdkVersion` 26 → **28** (dolna granica Qt 6.11), `compileSdkVersion` 36
+- Toolchain: Qt 6.9.x → **6.11.2** (Qt 6.9 oficjalnie wspiera tylko do API 35); NDK r27c, JDK 21
+- Własne `.so` linkowane z `-z max-page-size=16384` (16 KB page size, wymóg Play dla targetSdk ≥ 35)
+- `scripts/build-release-aab.sh`: toolchain wykrywany per system (macOS/Linux), hasło ze stdin bez echa
+- Manifest phone-only (`largeScreens/xlargeScreens=false`), `versionCode` z `git rev-list --count` (zmiany z 30.04, dotąd niezacommitowane)
+- `Qt6::Multimedia` usunięte (nieużywane; pre-built FFmpeg z Qt 6.9 miał 4 KB align)
+
+### Added
+- `scripts/verify-aab.sh` — podpis, 16 KB alignment wszystkich `.so`, manifest przez `bundletool`
+- `play-assets/`: ikona 512 RGB, feature graphic 1024×500, screenshoty 9:16
+
+### Released
+- Google Play, produkcja: v0.1.0 (kod 98) opublikowana 05.05.2026
 
 ---
 

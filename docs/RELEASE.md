@@ -17,7 +17,9 @@ chmod 600 ~/keystores/inwentaryzacja-mobile.jks
 - USB pendrive offline
 - Wydrukowana kopia hex hash + alias + CN (paper backup)
 
-**Hasła w password managerze** (Bitwarden / 1Password). Backup haseł osobno od pliku keystore.
+**Hasło keystore w managerze haseł `bw`** — item `inwentaryzacja-mobile-keystore` (hasło klucza = hasło keystore).
+Kopia haseł osobno od pliku keystore. 🔴 Bez hasła nie ma aktualizacji apki — jedyne wyjście to reset
+klucza przesyłania u Google (Play App Signing jest włączony, patrz niżej).
 
 ### 2. Google Play App Signing (zalecane)
 
@@ -29,41 +31,43 @@ Przy pierwszym uploadzie AAB do Play Console:
 
 ## Build signed AAB
 
+Toolchain (Qt 6.11.x, NDK 27.2.12479018, JDK 21) — skrypt wykrywa ścieżki per system (macOS / Linux).
+
 ```bash
-./scripts/build-release-aab.sh
+./scripts/build-release-aab.sh                                                  # pyta o hasło (bez echa)
+bw get password inwentaryzacja-mobile-keystore | ./scripts/build-release-aab.sh # hasło ze stdin
 ```
 
 Skrypt:
-1. Pyta o hasło keystore (bez echo)
-2. Pyta o hasło klucza (ENTER = takie samo jak keystore — domyślne)
+1. Czyta hasło keystore z terminala (bez echa) albo ze stdin, gdy stdin nie jest terminalem
+2. Hasło klucza: drugi wiersz / ENTER = takie samo jak keystore
 3. Eksportuje `QT_ANDROID_KEYSTORE_*` env vars
-4. `qt-cmake` configure (Release type) jeśli pierwszy raz
+4. `qt-cmake` configure (Release) z `-DQT_ANDROID_SIGN_AAB=ON` — **zawsze**, bo tylko flaga configure włącza podpis
 5. `cmake --build --target aab` → signed AAB
 6. Czyści env z hasłami
 
-Wynikowy plik: `android-app/build-android-release/android-build/build/outputs/bundle/release/android-build-release.aab`
+Weryfikacja przed uploadem (podpis, 16 KB page alignment wszystkich `.so`, versionCode/targetSdk z manifestu):
+```bash
+./scripts/verify-aab.sh android-app/build-android-release/android-build/build/outputs/bundle/release/android-build-release.aab
+```
 
 ## Versioning
 
-Przy każdym release **bump** w `android-app/CMakeLists.txt`:
-```cmake
-project(InwentaryzacjaMobile VERSION 0.1.1 ...)         # versionName
-set_target_properties(InwentaryzacjaMobile PROPERTIES
-    QT_ANDROID_VERSION_CODE 2                           # ≥ poprzedniego!
-    QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
-)
-```
-
-`versionCode` **musi** rosnąć monotonicznie z każdym uploadem do Play (nawet jeśli versionName się powtarza).
+- `versionName` = `project(... VERSION x.y.z)` w `android-app/CMakeLists.txt` — bump ręczny (semver).
+- `versionCode` = **automatycznie** `git rev-list --count HEAD + 10` (CMake). Każdy commit podnosi kod,
+  więc dwa AAB-y z tego samego commita mają ten sam kod (Play odrzuci duplikat — zrób commit).
+  Historia: v0.1.0 = kod 98 (30.04.2026).
+- Wymogi Play (stan 2026-09): `targetSdkVersion` **36** dla każdej aktualizacji od 31.08.2026,
+  16 KB page size dla targetSdk ≥ 35 (odrzucanie od 1.02.2027). Oba spięte w CMake i sprawdzane przez `verify-aab.sh`.
 
 ## Upload do Play Console
 
 1. Zaloguj się: https://play.google.com/console
 2. Wybierz aplikację (przy pierwszym uploadzie utwórz nową)
-3. **Internal Testing** track → Create new release
+3. Track **Produkcja** (apka jest w produkcji od 05.05.2026) → Utwórz nową wersję
 4. Upload AAB → Google waliduje signature + Play App Signing setup
 5. Release notes: krótki tekst (PL i EN)
-6. Roll-out percentage: 100% (Internal testing zawsze)
+6. Roll-out percentage: 100% (4 instalacje — bez sensu etapować)
 7. Save → Review release → Start rollout
 
 Przy pierwszym release Play Console poprosi o:
@@ -74,11 +78,10 @@ Patrz `docs/PLAY_STORE_SETUP.md` (TODO).
 
 ## Mała checklista przed `git tag`
 
-- [ ] `versionCode` zwiększony
-- [ ] `versionName` zwiększony semver
+- [ ] `versionName` zwiększony semver (`versionCode` rośnie sam z commitów)
 - [ ] `CHANGELOG.md` zaktualizowany
 - [ ] PR `dev → main` zmergowany
-- [ ] Build signed AAB lokalnie (`./scripts/build-release-aab.sh`)
+- [ ] Build signed AAB lokalnie (`./scripts/build-release-aab.sh`) + `./scripts/verify-aab.sh`
 - [ ] Test fizyczny na Pixelu — install AAB → odpal → smoke test (`bundletool` może wygenerować APKs z AAB)
-- [ ] Upload do Play Internal Testing
+- [ ] Upload do Play (Produkcja) + notatki wydania z `docs/play-store/release-notes-vX.Y.Z.md`
 - [ ] `git tag v0.1.1 && git push origin v0.1.1`
