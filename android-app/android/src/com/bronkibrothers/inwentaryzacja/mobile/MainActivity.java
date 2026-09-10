@@ -10,6 +10,9 @@ import android.provider.MediaStore;
 import android.util.Log;
 
 import androidx.core.content.FileProvider;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import org.qtproject.qt.android.bindings.QtActivity;
 
@@ -131,6 +134,27 @@ public class MainActivity extends QtActivity {
                 nativeOnPhotoError("Błąd kamery (code=" + resultCode + ")");
             }
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        restoreSystemBars();
+    }
+
+    /**
+     * Przywraca paski systemowe po powrocie z pełnoekranowego Intentu aparatu.
+     *
+     * Objaw (Pixel 10 Pro 07.09.2026, odtworzone na emulatorze Android 16 10.09.2026):
+     * po zrobieniu zdjęcia górny pas jest czarny, bez zegara i ikon.
+     * Przyczyna ZMIERZONA (`adb shell dumpsys window`): okno naszej aktywności wraca ze stanem
+     * `InsetsSource type=statusBars ... visible=false` — pasek jest UKRYTY, a nie „nieodrysowany".
+     * To warstwa okna, nie QML: żaden padding w QML nie narysuje systemowego zegara.
+     */
+    private void restoreSystemBars() {
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        controller.show(WindowInsetsCompat.Type.systemBars());
     }
 
     // === JNI bridge ===
