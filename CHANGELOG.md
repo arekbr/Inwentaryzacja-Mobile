@@ -16,6 +16,31 @@ Wszystkie istotne zmiany w projekcie. Format: [Keep a Changelog](https://keepach
 
 ---
 
+## [0.2.1] — 2026-09-10 (edge-to-edge)
+
+### Fixed
+- **Pasek systemowy znikał po powrocie z aparatu.** Objaw: górny pas czarny, bez zegara
+  (Pixel 10 Pro 07.09, odtworzone na emulatorze Android 16 10.09). Przyczyna zmierzona
+  przez `adb shell dumpsys window`: okno wracało ze stanem `type=statusBars visible=false`
+  — pasek był UKRYTY, a nie „nieodrysowany". Naprawione w warstwie okna
+  (`MainActivity.onResume()` → `WindowInsetsControllerCompat.show(systemBars)`), bo systemowego
+  zegara nie da się narysować paddingiem w QML.
+- **Pasek gestów zasłaniał przyciski na dole stron.** `SafeArea.margins.bottom` = 24 na
+  Androidzie 16 nie było obsłużone nigdzie — przyciski „Zrób ponownie"/„Zidentyfikuj" leżały
+  pod paskiem nawigacji. Dodane `bottomPadding` na wszystkich pięciu stronach.
+- **ToolBar czytał własną safe area**, co karmi pętlę wiązań (padding zmienia geometrię,
+  geometria przelicza margines). Zmienione na safe area okna. Podłoga 60 px zostaje: zmierzone
+  52 px na emulatorze bez wyspy aparatu, urządzeń z wyspą nie mierzono.
+
+### Świadomie nie zrobione
+- **R8** — Qt dostarcza gołe `.jar` bez consumer keep rules, a aparat woła Javę przez JNI po
+  nazwie (`launchCamera`, `nativeOnPhotoCaptured`). Bez własnych reguł keep R8 zmiótłby główną
+  funkcję apki, cicho i dopiero w release.
+- **Wycinanie nieużywanych stylów QtQuick Controls** — zysk zmierzony na 2,82 MB po kompresji
+  z 20,65 MB pobierania, a jedyny wspierany mechanizm (`QT_ANDROID_DEPLOYMENT_DEPENDENCIES`)
+  wyłącza automatyczne wykrywanie zależności i wymaga ręcznej listy wszystkiego. Styl **Basic
+  i tak musi zostać** — Fusion importuje go wprost, a `StackView` istnieje wyłącznie w Basic.
+
 ## [0.2.0] — 2026-09-07 (targetSdk 36 / Qt 6.11)
 
 ### Changed

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(InwentaryzacjaMobile
-    VERSION 0.2.0
+    VERSION 0.2.1
     DESCRIPTION "Mobilna apka Qt Android — katalogowanie eksponatów muzeum"
     LANGUAGES CXX
 )
