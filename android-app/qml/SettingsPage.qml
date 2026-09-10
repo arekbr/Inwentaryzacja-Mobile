@@ -3,6 +3,11 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 Page {
+
+    // Edge-to-edge: pasek gestów nachodzi na dół okna (zmierzone: SafeArea.margins.bottom = 24
+    // na Androidzie 16). Bez tego przyciski na dole strony leżą pod paskiem nawigacji.
+    // Bezpieczne wobec pętli wiązań: padding zmienia geometrię contentItem, a nie samej strony.
+    bottomPadding: SafeArea.margins.bottom
     id: page
     title: "Ustawienia"
     property bool checking: false

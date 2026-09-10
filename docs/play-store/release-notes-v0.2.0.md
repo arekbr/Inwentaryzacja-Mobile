@@ -34,6 +34,13 @@ Minimum Android version: 9 (was 8).
 ## Checklista przed „Rozpocznij wdrażanie"
 
 - [x] `verify-aab.sh`: 16 KB alignment wszystkich `.so` = OK; manifest: targetSdk 36 / minSdk 28 / 0.2.0
-- [ ] `verify-aab.sh`: podpis kluczem przesyłania (jarsigner „jar verified")
-- [ ] Smoke test: instalacja → start → ekran powitalny (emulator Android 16 lub Pixel)
-- [ ] Notatki wydania wklejone (pl-PL + en-US)
+- [x] `verify-aab.sh`: podpis kluczem przesyłania (jarsigner „jar verified") — 09.09.2026, 72/72 `.so` = 0x4000
+- [x] Smoke test: emulator Android 16 (`pixel_api36`), ten sam AAB przez `bundletool build-apks/install-apks` — kod 117 startuje, ekran powitalny renderuje się, 0 FATAL
+- [x] Notatki wydania wklejone (tylko `pl-PL` — listing sklepu ma jeden język, tag `<en-US>` nie ma gdzie trafić)
+
+## Stan publikacji
+
+- **09.09.2026 15:2x CEST** — AAB `117 (0.2.0)` wgrany do ścieżki produkcyjnej (nowy klucz przesyłania zaakceptowany; reset klucza wszedł w życie 09.09 o 15:08 CEST).
+- **09.09.2026 15:35 CEST** — zmiana wysłana do sprawdzenia przez Google (pełne wdrożenie 100 %). Weryfikacja zwykle do 7 dni.
+- Ostrzeżenia Console (świadome, nieblokujące): utrata 947 obsługiwanych urządzeń (minSdk 26 → 28 wymuszone przez Qt 6.11) oraz brak pliku deobfuscation R8/ProGuard.
+- Poprzednia wersja `98 (0.1.0)` pozostawiona jako nieuwzględniona w tym wydaniu.

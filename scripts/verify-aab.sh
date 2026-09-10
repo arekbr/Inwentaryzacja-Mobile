@@ -22,7 +22,14 @@ fi
 
 echo "== 2. Wyrównanie stron .so (LOAD align) — oczekiwane WYŁĄCZNIE 0x4000 (16 KB) =="
 TMP=$(mktemp -d)
-unzip -q "$AAB" -d "$TMP" 'base/lib/arm64-v8a/*.so'
+if ! unzip -q "$AAB" -d "$TMP" 'base/lib/arm64-v8a/*.so'; then
+    echo "   ZLE: rozpakowanie .so z AAB nie powiodlo sie"; RC=1
+fi
+if ! ls "$TMP"/base/lib/arm64-v8a/*.so >/dev/null 2>&1; then
+    echo "   ZLE: w AAB NIE MA ZADNEJ biblioteki .so dla arm64-v8a (pusty wynik != OK)"
+    find "$TMP" -mindepth 1 -delete && rmdir "$TMP"
+    exit 1
+fi
 ALL=$("$READELF" -l "$TMP"/base/lib/arm64-v8a/*.so | awk '/LOAD/ {print $NF}' | sort -u | tr '\n' ' ')
 BAD=$("$READELF" -l "$TMP"/base/lib/arm64-v8a/*.so | awk '/^File:/ {f=$2} /LOAD/ && $NF!="0x4000" {print f}' | sort -u)
 COUNT=$(ls "$TMP"/base/lib/arm64-v8a/ | wc -l | tr -d ' ')
@@ -47,6 +54,39 @@ if [[ -n "$BT" ]]; then
       | grep -oE '(versionCode|versionName|minSdkVersion|targetSdkVersion|compileSdkVersion|largeScreens|xlargeScreens)="[^"]*"' \
       | sed 's/^/   /'
 else
-    echo "   (brak bundletool — zainstaluj: brew install bundletool / jar do ~/.local/bin/bundletool.jar)"
+    echo "   ZLE: brak bundletool — manifest NIESPRAWDZONY (brak sprawdzenia != OK)"
+    echo "        zainstaluj: brew install bundletool  /  jar do ~/.local/bin/bundletool.jar"
+    RC=1
 fi
+
+echo "== 4. Biblioteki, ktorych brak wywala apke dopiero w RUNTIME =="
+# Styl QtQuick Controls rozstrzyga sie przy uruchomieniu, nie przy kompilacji: build i podpis
+# przechodza, a apka pada u uzytkownika. Basic jest OBOWIAZKOWY — Fusion importuje go wprost
+# (qmldir: "import QtQuick.Controls.Basic auto"), a StackView istnieje WYLACZNIE w Basic.
+REQUIRED_LIBS=(
+    libInwentaryzacjaMobile_arm64-v8a.so
+    libQt6Core_arm64-v8a.so
+    libQt6Gui_arm64-v8a.so
+    libQt6Qml_arm64-v8a.so
+    libQt6Quick_arm64-v8a.so
+    libQt6Network_arm64-v8a.so
+    libQt6QuickControls2_arm64-v8a.so
+    libQt6QuickControls2Impl_arm64-v8a.so
+    libQt6QuickControls2Basic_arm64-v8a.so
+    libQt6QuickControls2Fusion_arm64-v8a.so
+    libplugins_platforms_qtforandroid_arm64-v8a.so
+    libplugins_tls_qopensslbackend_arm64-v8a.so
+    libplugins_imageformats_qjpeg_arm64-v8a.so
+)
+INAAB=$(unzip -Z1 "$AAB" 'base/lib/arm64-v8a/*.so' 2>/dev/null | xargs -n1 basename 2>/dev/null)
+MISSING=""
+for lib in "${REQUIRED_LIBS[@]}"; do
+    grep -qx "$lib" <<<"$INAAB" || MISSING+="     $lib"$'\n'
+done
+if [[ -z "$MISSING" ]]; then
+    echo "   OK: wszystkie ${#REQUIRED_LIBS[@]} wymaganych bibliotek w pakiecie"
+else
+    echo "   ZLE: brakuje bibliotek wymaganych do uruchomienia:"; printf '%s' "$MISSING"; RC=1
+fi
+
 exit $RC

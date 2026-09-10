@@ -9,13 +9,19 @@ ApplicationWindow {
     height: 700
     title: "Inwentaryzacja"
 
+
     header: ToolBar {
         id: topBar
-        // Android 15+ edge-to-edge — status bar nachodzi na apkę, SafeArea.margins.top
-        // zwraca 0 w Basic/Fusion. Hardcoded 60 dla statusu + notch Pixel 10 Pro.
-        topPadding: Math.max(SafeArea.margins.top, 60)
-        leftPadding: Math.max(SafeArea.margins.left, 8)
-        rightPadding: Math.max(SafeArea.margins.right, 8)
+        // Android 15+ edge-to-edge (od API 36 nie da się z niego wypisać — atrybut
+        // windowOptOutEdgeToEdgeEnforcement jest wyłączony): pasek systemowy nachodzi na apkę.
+        // 🔴 Czytamy safe area OKNA (root.SafeArea), nie własną (SafeArea) — własna karmi
+        // pętlę wiązań: padding zmienia geometrię paska, geometria przelicza jego margines.
+        // Podłoga 60 zostaje: zmierzone 52 px na emulatorze Android 16 BEZ wyspy aparatu,
+        // urządzenia z wyspą (Pixel 10 Pro) nie były mierzone — podłoga może być tylko za duża
+        // (kosmetyka), jej brak może być za mały (treść pod wyspą).
+        topPadding: Math.max(root.SafeArea.margins.top, 60)
+        leftPadding: Math.max(root.SafeArea.margins.left, 8)
+        rightPadding: Math.max(root.SafeArea.margins.right, 8)
         bottomPadding: 4
 
         background: Rectangle { color: "#1a1a1a" }
@@ -80,7 +86,7 @@ ApplicationWindow {
     Rectangle {
         id: tokenSnackbar
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 32 + SafeArea.margins.bottom
+        anchors.bottomMargin: 32 + root.SafeArea.margins.bottom
         anchors.horizontalCenter: parent.horizontalCenter
         width: Math.min(parent.width - 32, 360)
         height: 56
