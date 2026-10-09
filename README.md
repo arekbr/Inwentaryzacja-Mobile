@@ -156,4 +156,4 @@ MIT — patrz [`LICENSE`](LICENSE). Rób co chcesz, byle wzmianka o autorze zost
 
 **Autor:** Yugorin (Arek Bronowicki, GitHub: arekbr) · arek@bronowicki.com  
 **Stan:** WIP active · kwiecień 2026 · sole maintainer
-<!-- hm-15c72be4611ee321 -->
+<!-- hm-60d726a43c13dedd -->
