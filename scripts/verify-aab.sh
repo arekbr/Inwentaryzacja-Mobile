@@ -77,6 +77,10 @@ REQUIRED_LIBS=(
     libplugins_platforms_qtforandroid_arm64-v8a.so
     libplugins_tls_qopensslbackend_arm64-v8a.so
     libplugins_imageformats_qjpeg_arm64-v8a.so
+    # Sama wtyczka TLS nie wystarczy: bez bibliotek OpenSSL kazde https:// konczy sie
+    # „TLS initialization failed” (0.2.0 tak wyszla do sklepu). Dodaje je KDAB/android_openssl w CMakeLists.
+    libssl_3.so
+    libcrypto_3.so
 )
 INAAB=$(unzip -Z1 "$AAB" 'base/lib/arm64-v8a/*.so' 2>/dev/null | xargs -n1 basename 2>/dev/null)
 MISSING=""

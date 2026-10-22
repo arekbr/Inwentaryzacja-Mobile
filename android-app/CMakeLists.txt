@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(InwentaryzacjaMobile
-    VERSION 0.2.1
+    VERSION 0.2.2
     DESCRIPTION "Mobilna apka Qt Android — katalogowanie eksponatów muzeum"
     LANGUAGES CXX
 )
@@ -83,6 +83,24 @@ if(ANDROID)
         QT_ANDROID_VERSION_CODE ${ANDROID_VERSION_CODE}
         QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
     )
+
+    # OpenSSL dla HTTPS. Qt na Androidzie ma wtyczkę TLS, ale NIE dostarcza libssl/libcrypto — bez nich
+    # każde https:// kończy się „TLS initialization failed” (zmierzone 22.10.2026 na Pixelu, wersja 0.2.0).
+    # Źródło jak w dokumentacji Qt 6.11 („Adding OpenSSL Support for Android”): KDAB/android_openssl,
+    # ale przypięte do commitu i sumy archiwum, nie do gałęzi master. Biblioteki arm64 zmierzone:
+    # LOAD align 0x4000 (wymóg 16 KB Play), licencja Apache-2.0.
+    # SOURCE_SUBDIR wskazuje katalog bez CMakeLists.txt: repo KDAB ma w korzeniu wewnętrzny test Qt
+    # (qt_internal_add_test), którego nie chcemy w naszym buildzie — bierzemy same pliki.
+    include(FetchContent)
+    FetchContent_Declare(android_openssl
+        URL https://github.com/KDAB/android_openssl/archive/b71f1470962019bd89534a2919f5925f93bc5779.zip
+        URL_HASH SHA256=9277d62ecdb4809801e2c369e0a639c154e0d9137e8d60863b44bf07d16ed5b3
+        DOWNLOAD_EXTRACT_TIMESTAMP true
+        SOURCE_SUBDIR bez-cmake
+    )
+    FetchContent_MakeAvailable(android_openssl)
+    include(${android_openssl_SOURCE_DIR}/android_openssl.cmake)
+    add_android_openssl_libraries(InwentaryzacjaMobile)
 
     # Release signing — auto-włącz gdy keystore env-var ustawione przez build-release-aab.sh.
     # androiddeployqt korzysta z QT_ANDROID_KEYSTORE_PATH/ALIAS/STORE_PASS/KEY_PASS env-varów,
