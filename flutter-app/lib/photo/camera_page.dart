@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../api/api_provider.dart';
 import '../identify/identify_result_page.dart';
+import '../settings/ai_consent.dart';
 import 'photo_utils.dart';
 
 class CameraPage extends ConsumerStatefulWidget {
@@ -60,6 +61,13 @@ class _CameraPageState extends ConsumerState<CameraPage> {
     final client = ref.read(apiClientProvider);
     if (client == null) {
       setState(() => _error = 'Brak konfiguracji backendu.');
+      return;
+    }
+    final allowed = await ensureAiConsent(context, ref);
+    if (!mounted) return;
+    if (!allowed) {
+      setState(() => _error =
+          'Rozpoznanie wymaga zgody na wysłanie zdjęcia do firmy Anthropic.');
       return;
     }
     setState(() {

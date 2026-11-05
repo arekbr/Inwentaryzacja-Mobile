@@ -8,8 +8,9 @@ Aplikacja `flutter-app/` trafia na iPhone'a: najpierw TestFlight wewnętrzny z p
 
 ## GOTOWE GDY
 
-1. **Tożsamość:** wersja z TestFlight na fizycznym iPhonie ma nazwę „Inwentaryzacja” i własną ikonę, nie logo Fluttera.
-2. **Przebieg:** na tym iPhonie działa cała ścieżka przez HTTPS: zdjęcie aparatem → rozpoznanie → edycja → zapis → szczegóły → „Znajdź podobne”.
+1. **Tożsamość:** aplikacja w symulatorze ma nazwę „Inwentaryzacja” i własną ikonę, nie logo Fluttera.
+2. **Przebieg:** w symulatorze działa ścieżka przez HTTPS: zdjęcie z biblioteki → rozpoznanie → edycja → zapis → szczegóły → „Znajdź podobne”.
+   Aparat i TestFlight sprawdzimy na fizycznym iPhonie. Bez tego nie wysyłamy do recenzji, bo wytyczna 2.1(a) wymaga testu na urządzeniu.
 3. **Zgoda na AI:** bez udzielonej zgody żadne zdjęcie nie wychodzi do rozpoznania; ekran zgody nazywa Anthropic; po odmowie reszta aplikacji działa.
 4. **Polityka prywatności:** link jest w aplikacji i w App Store Connect, a treść opisuje wersję iOS.
 5. **Recenzent:** dostaje osobny adres i token backendu demo. Token demo na produkcji daje 401, token produkcyjny na demo daje 401.
@@ -31,7 +32,7 @@ Aplikacja `flutter-app/` trafia na iPhone'a: najpierw TestFlight wewnętrzny z p
 - Brak sieci w trakcie rozpoznania i zapisu.
 - Błędny token, backend wyłączony.
 - Odmowa dostępu do aparatu i biblioteki zdjęć.
-- Backend po HTTP w sieci lokalnej: App Transport Security i uprawnienie sieci lokalnej mierzymy na fizycznym iPhonie, symulator tego nie pokaże.
+- Backend po HTTP w sieci lokalnej: App Transport Security i uprawnienie sieci lokalnej sprawdzimy, gdy będzie urządzenie testowe; symulator tego nie pokaże.
 - Jasny i ciemny motyw systemu.
 
 ## POZA
@@ -53,7 +54,8 @@ Aplikacja `flutter-app/` trafia na iPhone'a: najpierw TestFlight wewnętrzny z p
 
 - Kod `flutter-app/` bez zmian od 29.04.2026, `test/` pusty.
 - Nazwa wyświetlana „Mobile”, ikona to domyślne logo Fluttera, brak `DEVELOPMENT_TEAM`.
-- Na koncie Apple brak tego Bundle ID. Na maku 0 tożsamości podpisu. iPhone widoczny, ale `unpaired`.
+- Na koncie Apple brak tego Bundle ID. Na maku 0 tożsamości podpisu.
+- Urządzenie testowe: na razie tylko symulator. Telefon podłączony do maka nie służy do testów i nic na nim nie instalujemy, dopóki właściciel nie wskaże urządzenia.
 - W kodzie brak zgody na AI i brak linku do polityki prywatności.
 - Backend produkcyjny działa po HTTPS z poprawnym certyfikatem, bez tokenu odpowiada 401.
 - Polityka prywatności (wersja Android) jest publicznie dostępna, HTTP 200.
@@ -68,9 +70,9 @@ Aplikacja `flutter-app/` trafia na iPhone'a: najpierw TestFlight wewnętrzny z p
 
 | # | Zakres | Kto | Sprawdzenie |
 |---|---|---|---|
-| P1 | Konto w Xcode, sparowanie iPhone'a, `DEVELOPMENT_TEAM` | user + Claude | `flutter run --release` startuje na iPhonie |
-| P2 | Nazwa i ikona (potrzebne źródło 1024 px; Android ma tylko 192 px) | Claude, ikonę akceptuje user | Oglądane na ekranie głównym iPhone'a |
-| P3 | Rekord w App Store Connect, archiwum, TestFlight wewnętrzny | Claude + user | Punkty 1 i 2 |
+| P1 | Konto w Xcode, `DEVELOPMENT_TEAM` | user + Claude | Podpisane archiwum buduje się bez urządzenia |
+| P2 | Nazwa i ikona (źródło `play-assets/icon/icon-512-rgb.png`) | Claude, ikonę akceptuje user | Oglądane na ekranie głównym symulatora |
+| P3 | Rekord w App Store Connect, wysłanie archiwum; test na urządzeniu, gdy będzie dostępne | Claude + user | Punkty 1 i 2 |
 | P4 | Ekran zgody na AI i link do polityki, treść polityki dla iOS | Claude | Punkty 3 i 4 |
 | P5 | Backend demo z osobnym tokenem i danymi bez produkcji | Claude, decyzja usera | Punkt 5 |
 | P6 | Zrzuty, kategorie wiekowe, etykiety prywatności, status sprzedawcy UE, wysłanie do recenzji | Claude przygotowuje, user akceptuje i wysyła | Punkt 6 |

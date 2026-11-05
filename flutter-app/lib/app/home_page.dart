@@ -50,7 +50,7 @@ class HomePage extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Flutter rewrite — etap F4',
+                'Katalog kolekcji retro-komputerów',
                 style: TextStyle(
                     fontSize: 14, color: CupertinoColors.systemGrey),
               ),
@@ -191,8 +191,9 @@ class HomePage extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Apka wymaga własnego self-hosted backendu (FastAPI + MariaDB + CLIP). '
-            'Wpisz URL i token w Ustawieniach. Pełna instrukcja konfiguracji w README projektu.',
+            'Aplikacja łączy się z Twoim własnym serwerem (kod otwarty). '
+            'Wpisz jego adres i token w Ustawieniach. Instrukcja instalacji serwera: '
+            'github.com/arekbr/Inwentaryzacja-Mobile',
             style: TextStyle(fontSize: 13, height: 1.4),
           ),
         ],
