@@ -29,6 +29,7 @@ Future<ProcessedPhoto> resizeForUpload(
   }
 
   img.Image normalized = img.bakeOrientation(decoded);
+  normalized.exif = img.ExifData();
   if (normalized.width > maxDim || normalized.height > maxDim) {
     final scale = maxDim / (normalized.width > normalized.height
         ? normalized.width

@@ -149,8 +149,9 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                     if (_processed != null) ...[
                       const SizedBox(height: 12),
                       Text(
-                        'Po resize: ${_processed!.width}×${_processed!.height} px, '
-                        '${_formatSize(_processed!.sizeBytes)} JPEG q85',
+                        'Zdjęcie do wysłania: '
+                        '${_processed!.width}×${_processed!.height} px, '
+                        '${_formatSize(_processed!.sizeBytes)}',
                         style: const TextStyle(
                           fontSize: 13,
                           color: CupertinoColors.systemGrey,

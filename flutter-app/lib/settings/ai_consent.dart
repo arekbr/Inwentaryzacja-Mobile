@@ -40,8 +40,8 @@ Future<bool> ensureAiConsent(BuildContext context, WidgetRef ref) async {
       content: const Text(
         'Żeby rozpoznać eksponat, aplikacja wyśle to zdjęcie na serwer podany '
         'w Ustawieniach, a serwer przekaże je firmie Anthropic, która obsługuje '
-        'model AI Claude.\n\nBez zgody pozostałe funkcje działają normalnie. '
-        'Zgodę możesz wycofać w Ustawieniach.',
+        'model AI Claude.\n\nBez zgody nadal możesz przeglądać bazę i szukać '
+        'podobnych eksponatów. Zgodę możesz wycofać w Ustawieniach.',
       ),
       actions: [
         const CupertinoDialogAction(

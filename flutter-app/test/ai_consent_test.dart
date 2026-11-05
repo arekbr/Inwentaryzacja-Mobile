@@ -67,7 +67,7 @@ Future<int Function()> _openCameraWithPhoto(WidgetTester tester) async {
   );
   await tester.tap(find.text('Z biblioteki'));
   await _settle(tester);
-  expect(find.textContaining('Po resize'), findsOneWidget);
+  expect(find.textContaining('Zdjęcie do wysłania'), findsOneWidget);
   return () => requests;
 }
 
