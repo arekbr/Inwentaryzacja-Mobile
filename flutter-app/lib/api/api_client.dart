@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../browse/exhibit_list.dart';
 import '../detail/exhibit_detail.dart';
 import '../dictionaries/dict_item.dart';
 import '../identify/artefakt.dart';
@@ -154,6 +155,22 @@ class ApiClient {
     }
     final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
     return Artefakt.fromJson(json);
+  }
+
+  Future<ExhibitListResponse> listExhibits(
+      {required int page, int perPage = 50}) async {
+    final uri = _uri('/api/v1/exhibits').replace(queryParameters: {
+      'page': page.toString(),
+      'per_page': perPage.toString(),
+    });
+    final r = await _client
+        .get(uri, headers: _authHeaders())
+        .timeout(const Duration(seconds: 30));
+    if (r.statusCode != 200) {
+      throw _ApiError(r.statusCode, _errorMessage(r));
+    }
+    final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    return ExhibitListResponse.fromJson(json);
   }
 
   Future<ExhibitDetail> getExhibit(String id) async {
