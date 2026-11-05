@@ -4,7 +4,7 @@ title: Opis aplikacji w App Store
 
 # Opis w App Store
 
-**Nazwa:** Inwentaryzacja
+**Nazwa:** Inwentaryzacja Mobile (na ekranie telefonu: Inwentaryzacja)
 
 **Podtytuł:** Katalog kolekcji retro
 
