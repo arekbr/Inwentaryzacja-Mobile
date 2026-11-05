@@ -5,8 +5,8 @@ permalink: /privacy/
 
 # Polityka prywatności
 
-**Aplikacja:** Inwentaryzacja Mobile (`com.bronkibrothers.inwentaryzacja.mobile`)
-**Ostatnia aktualizacja:** 2026-04-27
+**Aplikacja:** Inwentaryzacja Mobile (`com.bronkibrothers.inwentaryzacja.mobile`), Android i iOS
+**Ostatnia aktualizacja:** 2026-11-05
 **Autor aplikacji (kod źródłowy):** Arek Bronowicki — kontakt: `dev@bronkibrothers.com`
 
 ---
@@ -38,6 +38,9 @@ Apka jest „dumb client" — wszystkie dane przepływają wyłącznie między u
 | Adres URL backendu | wpisany przez użytkownika w Ustawieniach | `QSettings` w sandboxie aplikacji (`/data/data/<package>/`) |
 | Token API (Bearer) | wpisany przez użytkownika w Ustawieniach | `QSettings` j.w., `android:allowBackup="false"` blokuje backup do chmury Google |
 | Tymczasowy plik zdjęcia | po naciśnięciu „Zrób zdjęcie" → systemowa Google Camera | `getExternalFilesDir(Pictures)` — kasowane przy odinstalowaniu apki |
+| iOS: adres URL backendu i token API | wpisane przez użytkownika w Ustawieniach | `UserDefaults` w sandboxie aplikacji; mogą trafić do kopii zapasowej urządzenia |
+| iOS: zgoda na rozpoznanie przez AI | decyzja użytkownika | `UserDefaults` w sandboxie aplikacji |
+| iOS: zdjęcie wybrane do wysłania | aparat albo biblioteka zdjęć | katalog tymczasowy aplikacji |
 
 **Aplikacja nie wysyła tych danych nigdzie autorowi.** Token API trafia tylko jako nagłówek `Authorization: Bearer …` do URLa backendu który użytkownik sam podał.
 
@@ -61,6 +64,8 @@ Domyślny kod backendu (open-source, w tym samym repo) **może** używać API Cl
 - jeśli operator backendu **nie ustawi klucza Anthropic** → funkcja nie działa, **żadne dane nie wychodzą** poza jego sieć
 - jeśli operator włącza Anthropic API → operator (nie autor aplikacji) jest odpowiedzialny za zgodę użytkownika końcowego
 
+**Zgoda w aplikacji na iOS.** Przed pierwszym rozpoznaniem aplikacja pyta o zgodę i wskazuje, że zdjęcie trafi na serwer podany w Ustawieniach, a stamtąd do firmy Anthropic. Bez zgody zdjęcie nie jest wysyłane do rozpoznania, a pozostałe funkcje działają. Zgodę można wycofać w Ustawieniach aplikacji.
+
 Polityka Anthropic dla API: https://www.anthropic.com/legal/privacy (Anthropic deklaruje że nie używa wejść API do treningu modeli).
 
 ## 5. Uprawnienia urządzenia
@@ -69,12 +74,14 @@ Polityka Anthropic dla API: https://www.anthropic.com/legal/privacy (Anthropic d
 |---|---|
 | `CAMERA` | uruchomienie systemowej aplikacji aparatu (Google Camera) — apka NIE czyta z aparatu sama, tylko deleguje do Google Camera przez Intent |
 | `INTERNET` | wysłanie HTTP request do URLa backendu **wpisanego przez użytkownika** — domyślnie aplikacja niczego nie wysyła |
+| iOS: aparat | zrobienie zdjęcia eksponatu |
+| iOS: biblioteka zdjęć | wybranie zdjęcia eksponatu |
 
 ## 6. Co aplikacja NIE zbiera (definitywnie)
 
 - danych lokalizacyjnych (GPS, sieci Wi-Fi, BLE)
 - kontaktów, kalendarza, plików spoza katalogu apki
-- identyfikatorów reklamowych (AAID), Firebase ID, Google Analytics ID, AppMetrica
+- identyfikatorów reklamowych (AAID, IDFA), Firebase ID, Google Analytics ID, AppMetrica
 - raportów awarii do zewnętrznych usług (Crashlytics, Sentry, Bugsnag)
 - żadnej telemetrii, statystyk użycia, heatmap, A/B-testów
 - numerów IMEI/IMSI, MAC, numerów seryjnych telefonu
@@ -90,6 +97,8 @@ W zakresie **danych zapisanych w aplikacji na urządzeniu** (URL backendu, token
 
 W zakresie **danych wysłanych do Twojego backendu**:
 - skontaktuj się z operatorem backendu (osobą która prowadzi serwer pod URL który wpisałeś w Ustawieniach) — to nie jest autor aplikacji.
+
+**Jak długo dane są przechowywane.** Aplikacja trzyma ustawienia na urządzeniu do ich zmiany albo odinstalowania aplikacji. Czas przechowywania danych na serwerze ustala operator backendu i to do niego kierujesz prośbę o ich usunięcie.
 
 W zakresie **kodu źródłowego aplikacji** (autora):
 - pytania, zgłoszenia bugów, pull requests: **`dev@bronkibrothers.com`** lub https://github.com/arekbr/Inwentaryzacja-Mobile/issues
