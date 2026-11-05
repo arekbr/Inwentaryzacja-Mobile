@@ -90,7 +90,7 @@ void main() {
     await tester.tap(find.text('Amiga 500'));
     await _settle(tester);
 
-    expect(paths, contains('/api/v1/exhibits/id-Amiga 500'));
+    expect(paths, contains('/api/v1/exhibits/id-Amiga%20500'));
   });
 
   testWidgets('błąd sieci: komunikat i działające „Ponów”', (tester) async {
