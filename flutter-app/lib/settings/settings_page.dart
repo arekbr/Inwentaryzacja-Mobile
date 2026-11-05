@@ -71,16 +71,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const SizedBox(height: 28),
               CupertinoButton.filled(
                 onPressed: () async {
-                  await ref.read(settingsProvider.notifier).save(
-                        apiUrl: _urlCtrl.text,
-                        apiToken: _tokenCtrl.text,
-                      );
+                  String? saveError;
+                  try {
+                    await ref.read(settingsProvider.notifier).save(
+                          apiUrl: _urlCtrl.text,
+                          apiToken: _tokenCtrl.text,
+                        );
+                  } catch (e) {
+                    saveError = '$e';
+                  }
                   if (!context.mounted) return;
                   await showCupertinoDialog<void>(
                     context: context,
                     builder: (ctx) => CupertinoAlertDialog(
-                      title: const Text('Zapisano'),
-                      content: const Text('Ustawienia zostały zapisane.'),
+                      title:
+                          Text(saveError == null ? 'Zapisano' : 'Nie zapisano'),
+                      content: Text(saveError ?? 'Ustawienia zostały zapisane.'),
                       actions: [
                         CupertinoDialogAction(
                           onPressed: () => Navigator.of(ctx).pop(),

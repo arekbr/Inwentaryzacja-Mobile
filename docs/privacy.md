@@ -38,7 +38,8 @@ Apka jest „dumb client" — wszystkie dane przepływają wyłącznie między u
 | Adres URL backendu | wpisany przez użytkownika w Ustawieniach | `QSettings` w sandboxie aplikacji (`/data/data/<package>/`) |
 | Token API (Bearer) | wpisany przez użytkownika w Ustawieniach | `QSettings` j.w., `android:allowBackup="false"` blokuje backup do chmury Google |
 | Tymczasowy plik zdjęcia | po naciśnięciu „Zrób zdjęcie" → systemowa Google Camera | `getExternalFilesDir(Pictures)` — kasowane przy odinstalowaniu apki |
-| iOS: adres URL backendu i token API | wpisane przez użytkownika w Ustawieniach | `UserDefaults` w sandboxie aplikacji; mogą trafić do kopii zapasowej urządzenia |
+| iOS: adres URL backendu | wpisany przez użytkownika w Ustawieniach | `UserDefaults` w sandboxie aplikacji |
+| iOS: token API | wpisany przez użytkownika w Ustawieniach | Pęk kluczy iOS, tylko na tym urządzeniu; wyczyszczenie pola w Ustawieniach usuwa token, samo odinstalowanie aplikacji może go tam zostawić |
 | iOS: zgoda na rozpoznanie przez AI | decyzja użytkownika | `UserDefaults` w sandboxie aplikacji |
 | iOS: zdjęcie wybrane do wysłania | aparat albo biblioteka zdjęć | katalog tymczasowy aplikacji |
 

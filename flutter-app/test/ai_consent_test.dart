@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -129,6 +130,7 @@ void main() {
   testWidgets('Ustawienia: zgodę da się wycofać, a polityka jest pod ręką',
       (tester) async {
     SharedPreferences.setMockInitialValues({_consentKey: true});
+    FlutterSecureStorage.setMockInitialValues({});
     await tester.pumpWidget(
       const ProviderScope(child: CupertinoApp(home: SettingsPage())),
     );
