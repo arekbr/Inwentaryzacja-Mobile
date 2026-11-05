@@ -157,7 +157,7 @@ class HomePage extends ConsumerWidget {
                 _kv('Eksponaty', '${h.exhibitsCount ?? '?'}'),
                 _kv('CLIP index', '${h.clipIndexSize ?? '?'}'),
                 if (h.mockIdentify == true)
-                  _kv('Tryb', 'MOCK identify (DEV)'),
+                  _kv('Tryb', 'demonstracyjny (rozpoznanie przykładowe)'),
               ],
             ],
           );

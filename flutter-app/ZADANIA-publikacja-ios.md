@@ -60,6 +60,13 @@ Aplikacja `flutter-app/` trafia na iPhone'a: najpierw TestFlight wewnętrzny z p
 - Backend produkcyjny działa po HTTPS z poprawnym certyfikatem, bez tokenu odpowiada 401.
 - Polityka prywatności (wersja Android) jest publicznie dostępna, HTTP 200.
 
+## Postęp (5.11.2026)
+
+- P1: podpis działa, aplikacja uruchomiona na urządzeniu testowym.
+- P2: nazwa i ikona potwierdzone na urządzeniu.
+- P4: zgoda i link gotowe; polityka czeka na weryfikację i scalenie do `main`.
+- P5: backend demo działa, wszystkie cztery próby krzyżowe tokenów dały oczekiwany wynik.
+
 ## Warstwy dodawane
 
 | CO dodaję | PO CO dziś | PROSTSZE ODRZUCONE, BO |
