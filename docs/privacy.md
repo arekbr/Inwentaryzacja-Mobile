@@ -7,122 +7,93 @@ permalink: /privacy/
 
 **Aplikacja:** Inwentaryzacja Mobile (`com.bronkibrothers.inwentaryzacja.mobile`), Android i iOS
 **Ostatnia aktualizacja:** 2026-11-05
-**Autor aplikacji (kod źródłowy):** Arek Bronowicki — kontakt: `dev@bronkibrothers.com`
+**Autor aplikacji:** Arek Bronowicki, kontakt: `dev@bronkibrothers.com`
 
 ---
 
-## TL;DR — co aplikacja robi z danymi
+## W skrócie
 
-**Nic.** Sam autor aplikacji **nie zbiera żadnych danych** od użytkowników:
+- Aplikacja łączy się z serwerem (backendem) podanym w Ustawieniach. Wybrane zdjęcia i dane eksponatów trafiają do operatora tego serwera.
+- Przy rozpoznawaniu przez AI serwer przekazuje zdjęcie firmie Anthropic. Na iOS wymaga to zgody w aplikacji.
+- Aplikacja nie zawiera reklam, analityki ani zewnętrznych raportów awarii.
 
-- Aplikacja nie ma wbudowanego serwera ani usługi w chmurze.
-- Aplikacja nie wysyła telemetrii, analytics, raportów awarii ani identyfikatorów reklamowych — nigdzie.
-- Aplikacja **nie działa** dopóki użytkownik sam nie poda w `Ustawieniach` adresu URL **swojego własnego backendu** + tokenu API.
+## 1. Kto otrzymuje dane
 
-Dopiero **operator własnego backendu** (np. muzeum, prywatny kolekcjoner) decyduje co dzieje się z danymi po ich wysłaniu. Autor aplikacji **nie ma dostępu** do żadnego backendu użytkownika ani do żadnych danych, które tam trafią.
+Odbiorcą danych jest **operator serwera podanego w Ustawieniach**, na przykład muzeum albo kolekcjoner prowadzący własny serwer. To on decyduje, jak długo przechowuje dane, i to do niego należy kierować prośby o ich usunięcie.
 
-## 1. Charakter aplikacji
+Autor aplikacji otrzymuje dane tylko wtedy, gdy łączysz się z serwerem, który sam prowadzi. Autor prowadzi serwer własnej kolekcji oraz serwer demonstracyjny do sprawdzenia aplikacji przez recenzenta sklepu. Serwer demonstracyjny zawiera dane przykładowe, a zapisane na nim dane mogą zostać usunięte bez uprzedzenia.
 
-Inwentaryzacja Mobile to **klient open-source** (licencja MIT) do katalogowania kolekcji retro-computingu. Aplikacja jest przeznaczona dla osób które:
+## 2. Co aplikacja przechowuje na urządzeniu
 
-- mają własną kolekcję eksponatów retro (komputery, peryferia, oprogramowanie)
-- chcą prowadzić jej cyfrowy katalog
-- uruchomiły **swój własny backend** (kod backendu również open-source, w tym samym repo)
+| Dane | Gdzie |
+|---|---|
+| Android: adres serwera i token API | ustawienia aplikacji (`QSettings`), `android:allowBackup="false"` wyklucza je z kopii zapasowej Google |
+| Android: tymczasowy plik zdjęcia | katalog zdjęć aplikacji, kasowany przy odinstalowaniu |
+| iOS: adres serwera | `UserDefaults` w sandboxie aplikacji |
+| iOS: token API | Pęk kluczy iOS, tylko na tym urządzeniu |
+| iOS: zgoda na rozpoznanie przez AI | `UserDefaults` w sandboxie aplikacji |
+| iOS: zdjęcie wybrane do wysłania | katalog tymczasowy aplikacji |
 
-Apka jest „dumb client" — wszystkie dane przepływają wyłącznie między urządzeniem użytkownika a backendem operatora.
+## 3. Co aplikacja wysyła
 
-## 2. Co aplikacja zbiera lokalnie na urządzeniu
+Do serwera podanego w Ustawieniach trafiają:
 
-| Dane | Skąd | Gdzie |
-|---|---|---|
-| Adres URL backendu | wpisany przez użytkownika w Ustawieniach | `QSettings` w sandboxie aplikacji (`/data/data/<package>/`) |
-| Token API (Bearer) | wpisany przez użytkownika w Ustawieniach | `QSettings` j.w., `android:allowBackup="false"` blokuje backup do chmury Google |
-| Tymczasowy plik zdjęcia | po naciśnięciu „Zrób zdjęcie" → systemowa Google Camera | `getExternalFilesDir(Pictures)` — kasowane przy odinstalowaniu apki |
-| iOS: adres URL backendu | wpisany przez użytkownika w Ustawieniach | `UserDefaults` w sandboxie aplikacji |
-| iOS: token API | wpisany przez użytkownika w Ustawieniach | Pęk kluczy iOS, tylko na tym urządzeniu; wyczyszczenie pola w Ustawieniach usuwa token, samo odinstalowanie aplikacji może go tam zostawić |
-| iOS: zgoda na rozpoznanie przez AI | decyzja użytkownika | `UserDefaults` w sandboxie aplikacji |
-| iOS: zdjęcie wybrane do wysłania | aparat albo biblioteka zdjęć | katalog tymczasowy aplikacji |
+- **zdjęcie**, gdy naciśniesz „Zidentyfikuj” albo uruchomisz wyszukiwanie podobnych eksponatów,
+- **zdjęcie i dane z formularza**, gdy zapiszesz eksponat,
+- **token API** w nagłówku każdego żądania wymagającego uwierzytelnienia.
 
-**Aplikacja nie wysyła tych danych nigdzie autorowi.** Token API trafia tylko jako nagłówek `Authorization: Bearer …` do URLa backendu który użytkownik sam podał.
+Serwer widzi też adres IP połączenia i używa go do ograniczania liczby żądań oraz ochrony przed nadużyciami.
 
-## 3. Dane wysyłane na serwer — TYLKO gdy użytkownik konfiguruje backend
+Zdjęcia i formularze są wysyłane po Twoim działaniu. Aplikacja automatycznie sprawdza też dostępność serwera i poprawność tokenu, na Androidzie co 15 sekund, gdy widoczny jest ekran główny.
 
-Po skonfigurowaniu URL i tokenu w Ustawieniach, użytkownik może świadomie:
+Aplikacja skaluje zdjęcia do najwyżej 2048 px i zapisuje je jako JPEG. Wersja iOS usuwa z nich metadane EXIF, w tym lokalizację GPS. Serwer sprawdza format i limit 8 MiB na zdjęcie, z wyjątkiem trybu demonstracyjnego rozpoznawania.
 
-- **kliknąć „Zidentyfikuj"** → zdjęcie eksponatu wysłane do **jego** backendu
-- **kliknąć „Szukaj podobnych"** → zdjęcie wysłane do **jego** backendu
-- **kliknąć „Zapisz do bazy"** → zdjęcie + metadata wysłane do **jego** backendu
+Wersja Android ma wstępnie ustawiony przykładowy adres w sieci lokalnej, który należy zastąpić adresem swojego serwera. Link do polityki prywatności otwiera tę stronę w GitHub Pages.
 
-Każda z tych operacji wymaga **świadomego, jawnego kliknięcia** użytkownika. Apka nie przesyła danych w tle.
+## 4. Rozpoznawanie przez AI (Anthropic)
 
-**Co backend zrobi z tymi danymi to wyłączna decyzja operatora backendu** — nie autora aplikacji. Jeśli stawiasz backend dla cudzych użytkowników, to Ty (operator) odpowiadasz za politykę prywatności swojego backendu — niniejszy dokument tej kwestii nie dotyczy.
+Funkcja „Zidentyfikuj” działa na serwerze. Przy rzeczywistym rozpoznawaniu serwer wysyła zdjęcie do API Anthropic, które obsługuje model AI Claude. Wymaga to klucza Anthropic ustawionego przez operatora. W trybie demonstracyjnym serwer zwraca stały, przykładowy wynik i nie łączy się z Anthropic.
 
-## 4. Anthropic API — opcjonalne, kontrolowane przez operatora backendu
+**Zgoda na iOS.** Przed wysłaniem zdjęcia do rozpoznania aplikacja wymaga zapisanej zgody. Jeśli nie udzielono jej wcześniej w Ustawieniach, wyświetla pytanie, które wskazuje serwer i firmę Anthropic. Bez zgody zdjęcie nie jest wysyłane do rozpoznania, a nadal można przeglądać bazę i szukać podobnych eksponatów. Dodanie nowego eksponatu wymaga obecnie przejścia przez rozpoznanie.
 
-Domyślny kod backendu (open-source, w tym samym repo) **może** używać API Claude (Anthropic) do funkcji „Zidentyfikuj" — Claude analizuje zdjęcie eksponatu i proponuje model/producenta/rok. **Ale:**
+**Android.** Rozpoznanie uruchamiasz przyciskiem. Wersja Android nie wyświetla osobnego pytania o zgodę.
 
-- to **opcjonalna funkcja** — operator backendu sam decyduje czy ją włącza (`ANTHROPIC_API_KEY` w `.env` backendu, opcjonalny tryb `DEV_MOCK_IDENTIFY=true`)
-- jeśli operator backendu **nie ustawi klucza Anthropic** → funkcja nie działa, **żadne dane nie wychodzą** poza jego sieć
-- jeśli operator włącza Anthropic API → operator (nie autor aplikacji) jest odpowiedzialny za zgodę użytkownika końcowego
+**Ochrona danych u odbiorców.** W kodzie serwera jedynym zewnętrznym odbiorcą danych jest Anthropic, działający na warunkach dla klientów API. Autor uznaje te warunki za zapewniające ochronę co najmniej równą opisanej w tej polityce. Operator innego serwera odpowiada za to, by każdy odbiorca, któremu sam przekazuje dane, zapewniał taką samą ochronę. Anthropic deklaruje, że domyślnie [nie używa wejść ani wyjść produktów komercyjnych do treningu modeli](https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-model-training), a [dane API co do zasady usuwa w ciągu 30 dni](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data). Obie deklaracje mają wyjątki opisane na tych stronach.
 
-**Zgoda w aplikacji na iOS.** Przed pierwszym rozpoznaniem aplikacja pyta o zgodę i wskazuje, że zdjęcie trafi na serwer podany w Ustawieniach, a stamtąd do firmy Anthropic. Bez zgody zdjęcie nie jest wysyłane do rozpoznania, a pozostałe funkcje działają. Zgodę można wycofać w Ustawieniach aplikacji.
-
-Polityka Anthropic dla API: https://www.anthropic.com/legal/privacy (Anthropic deklaruje że nie używa wejść API do treningu modeli).
-
-## 5. Uprawnienia urządzenia
+## 5. Uprawnienia
 
 | Uprawnienie | Po co |
 |---|---|
-| `CAMERA` | uruchomienie systemowej aplikacji aparatu (Google Camera) — apka NIE czyta z aparatu sama, tylko deleguje do Google Camera przez Intent |
-| `INTERNET` | wysłanie HTTP request do URLa backendu **wpisanego przez użytkownika** — domyślnie aplikacja niczego nie wysyła |
+| Android: `CAMERA` | uruchomienie aplikacji aparatu przez systemowy `ACTION_IMAGE_CAPTURE` |
+| Android: `INTERNET` | połączenie z serwerem |
 | iOS: aparat | zrobienie zdjęcia eksponatu |
-| iOS: biblioteka zdjęć | wybranie zdjęcia eksponatu |
+| iOS: biblioteka zdjęć | wybranie zdjęcia eksponatu; aplikacja odczytuje tylko zdjęcie wskazane przez Ciebie |
 
-## 6. Co aplikacja NIE zbiera (definitywnie)
+## 6. Czego aplikacja nie robi
 
-- danych lokalizacyjnych (GPS, sieci Wi-Fi, BLE)
-- kontaktów, kalendarza, plików spoza katalogu apki
-- identyfikatorów reklamowych (AAID, IDFA), Firebase ID, Google Analytics ID, AppMetrica
-- raportów awarii do zewnętrznych usług (Crashlytics, Sentry, Bugsnag)
-- żadnej telemetrii, statystyk użycia, heatmap, A/B-testów
-- numerów IMEI/IMSI, MAC, numerów seryjnych telefonu
+- nie odczytuje lokalizacji przez interfejsy urządzenia,
+- nie odczytuje kontaktów ani kalendarza,
+- nie korzysta z identyfikatorów reklamowych (AAID, IDFA),
+- nie zawiera analityki, reklam ani zewnętrznych raportów awarii.
 
-## 7. Z kim autor dzieli się danymi
+## 7. Przechowywanie, usuwanie i wycofanie zgody
 
-**Z nikim.** Autor aplikacji nie ma żadnego serwera, do którego apka by się łączyła. Wszelkie połączenia sieciowe idą na URL **wpisany przez użytkownika w Ustawieniach** (jego własny backend).
+- **Ustawienia na urządzeniu** zostają do ich zmiany albo odinstalowania aplikacji.
+- **Token na iOS:** wyczyść pole „Token API” i naciśnij „Zapisz”. Samo odinstalowanie aplikacji może zostawić go w Pęku kluczy.
+- **Zdjęcia tymczasowe** leżą w katalogu aplikacji do czasu ich usunięcia przez system albo odinstalowania aplikacji.
+- **Dane na serwerze:** czas przechowywania ustala operator i do niego kierujesz prośbę o usunięcie.
+- **Wycofanie zgody na iOS:** wyłącz przełącznik zgody w Ustawieniach. Nie cofa to wysłania zdjęć przekazanych wcześniej; ich dotyczy prośba do operatora.
 
-## 8. Prawa użytkownika (RODO)
+Jeśli masz pytania o dane w aplikacji albo na serwerze prowadzonym przez autora, napisz na `dev@bronkibrothers.com`.
 
-W zakresie **danych zapisanych w aplikacji na urządzeniu** (URL backendu, token):
-- masz pełną kontrolę — możesz je zmienić w `Ustawieniach` lub usunąć przez odinstalowanie aplikacji.
+## 8. Dane dzieci
 
-W zakresie **danych wysłanych do Twojego backendu**:
-- skontaktuj się z operatorem backendu (osobą która prowadzi serwer pod URL który wpisałeś w Ustawieniach) — to nie jest autor aplikacji.
+Aplikacja nie jest skierowana do dzieci poniżej 13 lat.
 
-**Jak długo dane są przechowywane.** Aplikacja trzyma ustawienia na urządzeniu do ich zmiany albo odinstalowania aplikacji. Czas przechowywania danych na serwerze ustala operator backendu i to do niego kierujesz prośbę o ich usunięcie.
+## 9. Zmiany polityki
 
-W zakresie **kodu źródłowego aplikacji** (autora):
-- pytania, zgłoszenia bugów, pull requests: **`dev@bronkibrothers.com`** lub https://github.com/arekbr/Inwentaryzacja-Mobile/issues
-
-## 9. Bezpieczeństwo
-
-- `android:allowBackup="false"` — token API nie wycieka do chmury Google przy automatycznym backupie urządzenia.
-- Walidacja zdjęć przed wysłaniem (rozmiar ≤ 8 MB, typ JPEG/PNG/WEBP/HEIF).
-- Resize zdjęć do max 2048 px przed uploadem (oszczędność transferu + redukcja metadanych EXIF GPS, jeśli aparat je dodał).
-- Brak hard-codowanych URL ani tokenów w aplikacji — wszystko ustawiane w runtime przez użytkownika.
-
-## 10. Dane dzieci
-
-Aplikacja nie jest skierowana do dzieci poniżej 13 lat. Aplikacja nie zbiera danych od żadnego użytkownika — patrz sekcja 2.
-
-## 11. Zmiany polityki
-
-W razie zmian, zaktualizowana wersja zostanie opublikowana w `https://arekbr.github.io/Inwentaryzacja-Mobile/privacy/` z nową datą „Ostatnia aktualizacja". Repo na GitHub przechowuje pełną historię zmian polityki.
-
-## 12. Kontakt
-
-Pytania o aplikację (kod, działanie, bugi): **`dev@bronkibrothers.com`**
+Zaktualizowana wersja pojawia się pod adresem `https://arekbr.github.io/Inwentaryzacja-Mobile/privacy/` z nową datą. Repozytorium na GitHubie przechowuje historię zmian.
 
 ---
 
-*Aplikacja wydana na licencji MIT. Kod źródłowy aplikacji i backendu: https://github.com/arekbr/Inwentaryzacja-Mobile*
+*Aplikacja na licencji MIT. Kod źródłowy aplikacji i serwera: https://github.com/arekbr/Inwentaryzacja-Mobile*

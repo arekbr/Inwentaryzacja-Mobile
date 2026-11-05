@@ -21,6 +21,7 @@ Praca: gałąź funkcji → `dev` → `main`.
 ## Miny
 
 - **Budowanie na urządzenie po `--no-codesign`:** zostaje niepodpisany `objective_c.framework`, a instalacja pada z komunikatem `Error running application`. Przed budowaniem na urządzenie albo do sklepu: `flutter clean`. Kontrola: `codesign -dv` na tym składniku ma pokazać identyfikator zespołu.
+- **`exportArchive Copy failed`:** systemowy `rsync` uruchamia przez `PATH` wersję z Homebrew, która nie zna jego opcji. Eksport archiwum: `PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -exportArchive …`.
 - **Pęk kluczy iOS przeżywa odinstalowanie aplikacji:** token usuwa się, czyszcząc pole w Ustawieniach.
 - **Duży tekst systemowy:** ekrany muszą się przewijać. Test: `flutter-app/test/large_text_test.dart`.
 - **Testy Fluttera na macOS:** bez atrap `SharedPreferences` i `FlutterSecureStorage` ekran czeka na platformę i test mierzy nie to, co trzeba.
