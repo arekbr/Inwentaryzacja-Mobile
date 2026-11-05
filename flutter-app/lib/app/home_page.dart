@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_provider.dart';
 import '../api/health.dart';
+import '../browse/browse_page.dart';
 import '../photo/camera_page.dart';
 import '../settings/settings_page.dart';
 import '../similar/similar_page.dart';
@@ -80,6 +81,21 @@ class HomePage extends ConsumerWidget {
                             )
                           : null,
                       child: const Text('Zrób zdjęcie eksponatu'),
+                    ),
+                    const SizedBox(height: 10),
+                    CupertinoButton(
+                      color: CupertinoColors.systemGrey5,
+                      onPressed: healthAsync.asData?.value.isOk == true
+                          ? () => Navigator.of(context).push(
+                              CupertinoPageRoute(
+                                builder: (_) => const BrowsePage(),
+                              ),
+                            )
+                          : null,
+                      child: const Text(
+                        'Przeglądaj bazę',
+                        style: TextStyle(color: CupertinoColors.label),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     CupertinoButton(

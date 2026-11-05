@@ -15,6 +15,7 @@ Aplikacja `flutter-app/` trafia na iPhone'a: najpierw TestFlight wewnętrzny z p
 4. **Polityka prywatności:** link jest w aplikacji i w App Store Connect, a treść opisuje wersję iOS.
 5. **Recenzent:** dostaje osobny adres i token backendu demo. Token demo na produkcji daje 401, token produkcyjny na demo daje 401.
 6. **App Store:** status „Ready for Distribution” albo zapisana decyzja o zatrzymaniu się na TestFlight.
+7. **Przeglądanie bazy:** przycisk „Przeglądaj bazę” jak na Androidzie: lista z miniaturami, dociąganie kolejnych stron, szczegóły po stuknięciu, czytelny błąd i „Ponów”. Zapisany eksponat widać na liście.
 
 ## SPRAWDZĘ TAK
 
