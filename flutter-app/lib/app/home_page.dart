@@ -11,18 +11,18 @@ class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   Color _statusColor(HealthStatus s) => switch (s) {
-        HealthStatus.ok => CupertinoColors.activeGreen,
-        HealthStatus.backendDown => CupertinoColors.destructiveRed,
-        HealthStatus.tokenInvalid => CupertinoColors.systemOrange,
-        HealthStatus.notConfigured => CupertinoColors.systemGrey,
-      };
+    HealthStatus.ok => CupertinoColors.activeGreen,
+    HealthStatus.backendDown => CupertinoColors.destructiveRed,
+    HealthStatus.tokenInvalid => CupertinoColors.systemOrange,
+    HealthStatus.notConfigured => CupertinoColors.systemGrey,
+  };
 
   String _statusLabel(HealthStatus s) => switch (s) {
-        HealthStatus.ok => 'OK',
-        HealthStatus.backendDown => 'Backend niedostępny',
-        HealthStatus.tokenInvalid => 'Token niepoprawny',
-        HealthStatus.notConfigured => 'Nieskonfigurowane',
-      };
+    HealthStatus.ok => 'OK',
+    HealthStatus.backendDown => 'Backend niedostępny',
+    HealthStatus.tokenInvalid => 'Token niepoprawny',
+    HealthStatus.notConfigured => 'Nieskonfigurowane',
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,67 +38,87 @@ class HomePage extends ConsumerWidget {
         ),
       ),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 8),
-              const Text(
-                'Inwentaryzacja Mobile',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Katalog kolekcji retro-komputerów',
-                style: TextStyle(
-                    fontSize: 14, color: CupertinoColors.systemGrey),
-              ),
-              const SizedBox(height: 20),
-              _buildHealthPanel(context, healthAsync),
-              if (healthAsync.asData?.value.status ==
-                  HealthStatus.notConfigured) ...[
-                const SizedBox(height: 14),
-                _buildOnboarding(context),
-              ],
-              const Spacer(),
-              CupertinoButton.filled(
-                onPressed: healthAsync.asData?.value.isOk == true
-                    ? () => Navigator.of(context).push(
-                          CupertinoPageRoute(
-                              builder: (_) => const CameraPage()),
-                        )
-                    : null,
-                child: const Text('Zrób zdjęcie eksponatu'),
-              ),
-              const SizedBox(height: 10),
-              CupertinoButton(
-                color: CupertinoColors.systemGrey5,
-                onPressed: healthAsync.asData?.value.isOk == true
-                    ? () => Navigator.of(context).push(
-                          CupertinoPageRoute(
-                              builder: (_) => const SimilarPage()),
-                        )
-                    : null,
-                child: const Text('Znajdź podobne',
-                    style: TextStyle(color: CupertinoColors.label)),
-              ),
-              const SizedBox(height: 8),
-              CupertinoButton(
-                onPressed: () => Navigator.of(context).push(
-                  CupertinoPageRoute(builder: (_) => const SettingsPage()),
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(20),
+              sliver: SliverFillRemaining(
+                hasScrollBody: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Inwentaryzacja Mobile',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Katalog kolekcji retro-komputerów',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: CupertinoColors.systemGrey,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildHealthPanel(context, healthAsync),
+                    if (healthAsync.asData?.value.status ==
+                        HealthStatus.notConfigured) ...[
+                      const SizedBox(height: 14),
+                      _buildOnboarding(context),
+                    ],
+                    const Spacer(),
+                    CupertinoButton.filled(
+                      onPressed: healthAsync.asData?.value.isOk == true
+                          ? () => Navigator.of(context).push(
+                              CupertinoPageRoute(
+                                builder: (_) => const CameraPage(),
+                              ),
+                            )
+                          : null,
+                      child: const Text('Zrób zdjęcie eksponatu'),
+                    ),
+                    const SizedBox(height: 10),
+                    CupertinoButton(
+                      color: CupertinoColors.systemGrey5,
+                      onPressed: healthAsync.asData?.value.isOk == true
+                          ? () => Navigator.of(context).push(
+                              CupertinoPageRoute(
+                                builder: (_) => const SimilarPage(),
+                              ),
+                            )
+                          : null,
+                      child: const Text(
+                        'Znajdź podobne',
+                        style: TextStyle(color: CupertinoColors.label),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    CupertinoButton(
+                      onPressed: () => Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => const SettingsPage(),
+                        ),
+                      ),
+                      child: const Text('Ustawienia'),
+                    ),
+                  ],
                 ),
-                child: const Text('Ustawienia'),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildHealthPanel(
-      BuildContext context, AsyncValue<HealthInfo> healthAsync) {
+    BuildContext context,
+    AsyncValue<HealthInfo> healthAsync,
+  ) {
     final bg = CupertinoColors.systemGrey6.resolveFrom(context);
     return Container(
       padding: const EdgeInsets.all(14),
@@ -111,13 +131,15 @@ class HomePage extends ConsumerWidget {
           children: [
             CupertinoActivityIndicator(),
             SizedBox(width: 12),
-            Text('Sprawdzam backend…'),
+            Expanded(child: Text('Sprawdzam backend…')),
           ],
         ),
         error: (e, _) => Row(
           children: [
-            const Icon(CupertinoIcons.exclamationmark_triangle,
-                color: CupertinoColors.destructiveRed),
+            const Icon(
+              CupertinoIcons.exclamationmark_triangle,
+              color: CupertinoColors.destructiveRed,
+            ),
             const SizedBox(width: 8),
             Expanded(child: Text('Błąd: $e')),
           ],
@@ -138,18 +160,26 @@ class HomePage extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    _statusLabel(h.status),
-                    style: TextStyle(
+                  Expanded(
+                    child: Text(
+                      _statusLabel(h.status),
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: color),
+                        color: color,
+                      ),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(h.message,
-                  style: const TextStyle(fontSize: 13, color: CupertinoColors.label)),
+              Text(
+                h.message,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: CupertinoColors.label,
+                ),
+              ),
               if (h.isOk) ...[
                 const SizedBox(height: 12),
                 _kv('Wersja', h.version ?? '?'),
@@ -173,20 +203,29 @@ class HomePage extends ConsumerWidget {
         color: CupertinoColors.systemBlue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-            color: CupertinoColors.systemBlue.withValues(alpha: 0.3)),
+          color: CupertinoColors.systemBlue.withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(CupertinoIcons.info_circle,
-                  color: CupertinoColors.systemBlue, size: 20),
+              Icon(
+                CupertinoIcons.info_circle,
+                color: CupertinoColors.systemBlue,
+                size: 20,
+              ),
               SizedBox(width: 8),
-              Text('Witaj w Inwentaryzacji',
+              Expanded(
+                child: Text(
+                  'Witaj w Inwentaryzacji',
                   style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: CupertinoColors.systemBlue)),
+                    fontWeight: FontWeight.w600,
+                    color: CupertinoColors.systemBlue,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -202,21 +241,27 @@ class HomePage extends ConsumerWidget {
   }
 
   Widget _kv(String label, String value) => Padding(
-        padding: const EdgeInsets.only(top: 2),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 100,
-              child: Text(label,
-                  style: const TextStyle(
-                      fontSize: 12, color: CupertinoColors.systemGrey)),
+    padding: const EdgeInsets.only(top: 2),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: CupertinoColors.systemGrey,
             ),
-            Expanded(
-              child: Text(value,
-                  style: const TextStyle(fontSize: 13),
-                  overflow: TextOverflow.ellipsis),
-            ),
-          ],
+          ),
         ),
-      );
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 13),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
 }

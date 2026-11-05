@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,14 +26,18 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
 
   Future<String> _readToken(SharedPreferences prefs) async {
     final legacyToken = prefs.getString(_kApiToken);
-    if (legacyToken == null) {
-      return await _secureStorage.read(key: _kApiToken) ?? '';
+    try {
+      if (legacyToken == null) {
+        return await _secureStorage.read(key: _kApiToken) ?? '';
+      }
+      await _secureStorage.write(key: _kApiToken, value: legacyToken);
+      if (await _secureStorage.read(key: _kApiToken) == legacyToken) {
+        await prefs.remove(_kApiToken);
+      }
+    } on PlatformException {
+      // Bez Pęku kluczy aplikacja ma się otworzyć; błąd zapisu pokaże ekran Ustawień.
     }
-    await _secureStorage.write(key: _kApiToken, value: legacyToken);
-    if (await _secureStorage.read(key: _kApiToken) == legacyToken) {
-      await prefs.remove(_kApiToken);
-    }
-    return legacyToken;
+    return legacyToken ?? '';
   }
 
   Future<void> save({required String apiUrl, required String apiToken}) async {

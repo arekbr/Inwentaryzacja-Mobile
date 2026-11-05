@@ -66,8 +66,10 @@ class _CameraPageState extends ConsumerState<CameraPage> {
     final allowed = await ensureAiConsent(context, ref);
     if (!mounted) return;
     if (!allowed) {
-      setState(() => _error =
-          'Rozpoznanie wymaga zgody na wysłanie zdjęcia do firmy Anthropic.');
+      setState(
+        () => _error =
+            'Rozpoznanie wymaga zgody na wysłanie zdjęcia do firmy Anthropic.',
+      );
       return;
     }
     setState(() {
@@ -106,101 +108,123 @@ class _CameraPageState extends ConsumerState<CameraPage> {
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('Zdjęcie')),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.systemGrey6.resolveFrom(context),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: _path == null
-                      ? const Center(
-                          child: Text(
-                            'Brak zdjęcia',
-                            style: TextStyle(
-                                color: CupertinoColors.systemGrey,
-                                fontSize: 16),
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(20),
+              sliver: SliverFillRemaining(
+                hasScrollBody: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: MediaQuery.sizeOf(context).height * 0.4,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: CupertinoColors.systemGrey6.resolveFrom(
+                            context,
                           ),
-                        )
-                      : ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.file(
-                            File(_path!),
-                            fit: BoxFit.contain,
-                            width: double.infinity,
+                        ),
+                        child: _path == null
+                            ? const Center(
+                                child: Text(
+                                  'Brak zdjęcia',
+                                  style: TextStyle(
+                                    color: CupertinoColors.systemGrey,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              )
+                            : ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.file(
+                                  File(_path!),
+                                  fit: BoxFit.contain,
+                                  width: double.infinity,
+                                ),
+                              ),
+                      ),
+                    ),
+                    if (_processed != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Po resize: ${_processed!.width}×${_processed!.height} px, '
+                        '${_formatSize(_processed!.sizeBytes)} JPEG q85',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: CupertinoColors.systemGrey,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: CupertinoColors.destructiveRed,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CupertinoButton(
+                            color: CupertinoColors.systemGrey4,
+                            onPressed: (_busy || _identifying)
+                                ? null
+                                : () => _pick(ImageSource.gallery),
+                            child: const Text(
+                              'Z biblioteki',
+                              style: TextStyle(color: CupertinoColors.label),
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: CupertinoButton(
+                            color: CupertinoColors.systemGrey4,
+                            onPressed: (_busy || _identifying)
+                                ? null
+                                : () => _pick(ImageSource.camera),
+                            child: const Text(
+                              'Aparat',
+                              style: TextStyle(color: CupertinoColors.label),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    CupertinoButton.filled(
+                      onPressed: (hasPhoto && !_busy && !_identifying)
+                          ? _identify
+                          : null,
+                      child: _identifying
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                CupertinoActivityIndicator(
+                                  color: CupertinoColors.white,
+                                ),
+                                SizedBox(width: 10),
+                                Text('Wysyłam do AI…'),
+                              ],
+                            )
+                          : const Text('Zidentyfikuj'),
+                    ),
+                    if (_busy && !_identifying) ...[
+                      const SizedBox(height: 12),
+                      const Center(child: CupertinoActivityIndicator()),
+                    ],
+                  ],
                 ),
               ),
-              if (_processed != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Po resize: ${_processed!.width}×${_processed!.height} px, '
-                  '${_formatSize(_processed!.sizeBytes)} JPEG q85',
-                  style: const TextStyle(
-                      fontSize: 13, color: CupertinoColors.systemGrey),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!,
-                    style: const TextStyle(
-                        color: CupertinoColors.destructiveRed, fontSize: 13)),
-              ],
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: CupertinoButton(
-                      color: CupertinoColors.systemGrey4,
-                      onPressed: (_busy || _identifying)
-                          ? null
-                          : () => _pick(ImageSource.gallery),
-                      child: const Text('Z biblioteki',
-                          style: TextStyle(color: CupertinoColors.label)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: CupertinoButton(
-                      color: CupertinoColors.systemGrey4,
-                      onPressed: (_busy || _identifying)
-                          ? null
-                          : () => _pick(ImageSource.camera),
-                      child: const Text('Aparat',
-                          style: TextStyle(color: CupertinoColors.label)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              CupertinoButton.filled(
-                onPressed: (hasPhoto && !_busy && !_identifying)
-                    ? _identify
-                    : null,
-                child: _identifying
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          CupertinoActivityIndicator(
-                              color: CupertinoColors.white),
-                          SizedBox(width: 10),
-                          Text('Wysyłam do AI…'),
-                        ],
-                      )
-                    : const Text('Zidentyfikuj'),
-              ),
-              if (_busy && !_identifying) ...[
-                const SizedBox(height: 12),
-                const Center(child: CupertinoActivityIndicator()),
-              ],
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
