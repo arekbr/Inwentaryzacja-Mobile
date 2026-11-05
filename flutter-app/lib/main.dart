@@ -7,6 +7,14 @@ void main() {
   runApp(const ProviderScope(child: InwentaryzacjaApp()));
 }
 
+const _maxTextScale = 2.0;
+
+Widget _limitTextScale(BuildContext context, Widget? child) =>
+    MediaQuery.withClampedTextScaling(
+      maxScaleFactor: _maxTextScale,
+      child: child!,
+    );
+
 class InwentaryzacjaApp extends StatelessWidget {
   const InwentaryzacjaApp({super.key});
 
@@ -18,6 +26,7 @@ class InwentaryzacjaApp extends StatelessWidget {
         brightness: Brightness.light,
         primaryColor: CupertinoColors.activeBlue,
       ),
+      builder: _limitTextScale,
       home: HomePage(),
       debugShowCheckedModeBanner: false,
     );

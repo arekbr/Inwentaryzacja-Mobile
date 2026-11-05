@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'ai_consent.dart';
 import 'settings_provider.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -25,6 +26,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(settingsProvider);
+    final aiConsent = ref.watch(aiConsentProvider).asData?.value ?? false;
 
     settingsAsync.whenData((s) {
       if (!_hydrated) {
@@ -69,16 +71,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const SizedBox(height: 28),
               CupertinoButton.filled(
                 onPressed: () async {
-                  await ref.read(settingsProvider.notifier).save(
-                        apiUrl: _urlCtrl.text,
-                        apiToken: _tokenCtrl.text,
-                      );
+                  String? saveError;
+                  try {
+                    await ref.read(settingsProvider.notifier).save(
+                          apiUrl: _urlCtrl.text,
+                          apiToken: _tokenCtrl.text,
+                        );
+                  } catch (e) {
+                    saveError = '$e';
+                  }
                   if (!context.mounted) return;
                   await showCupertinoDialog<void>(
                     context: context,
                     builder: (ctx) => CupertinoAlertDialog(
-                      title: const Text('Zapisano'),
-                      content: const Text('Ustawienia zostały zapisane.'),
+                      title:
+                          Text(saveError == null ? 'Zapisano' : 'Nie zapisano'),
+                      content: Text(saveError ?? 'Ustawienia zostały zapisane.'),
                       actions: [
                         CupertinoDialogAction(
                           onPressed: () => Navigator.of(ctx).pop(),
@@ -89,6 +97,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   );
                 },
                 child: const Text('Zapisz'),
+              ),
+              const SizedBox(height: 28),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Zgoda na wysyłanie zdjęć do rozpoznania przez firmę Anthropic (AI)',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  CupertinoSwitch(
+                    value: aiConsent,
+                    onChanged: (value) => ref
+                        .read(aiConsentProvider.notifier)
+                        .setGranted(value),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const CupertinoButton(
+                padding: EdgeInsets.zero,
+                alignment: Alignment.centerLeft,
+                onPressed: openPrivacyPolicy,
+                child: Text('Polityka prywatności'),
               ),
             ],
           ),
